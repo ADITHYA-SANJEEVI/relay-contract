@@ -76,17 +76,17 @@ Fairness: among a finite set of continuously eligible jobs, each successful clai
 
 ## Renew
 
-Lock job, partition and attempt. Sample DB time after locks. Require job active, partition RUNNING, current attempt identity/generation/owner, attempt ACTIVE, t<lease_expires_at and t<hard_deadline_at. A duplicate or lower renew sequence never extends lease. Exact last sequence/fingerprint returns cached response only if still valid; older sequences return ignored/current lease. Higher seq sets lease=min(t+lease_duration, hard_deadline_at), saves response/fingerprint and emits LEASE_RENEWED. Equal sequence/different payload conflicts. Expired attempts always reject, including duplicate renews; stale renew acknowledgments cannot restore authority. Worker telemetry heartbeat is a different endpoint.
+Lock job, partition and attempt. Require [live attempt ownership](SPEC.md#live-attempt-ownership--canonical-predicate), including job RUNNING and its single post-lock DB-time sample t. A duplicate or lower renew sequence never extends lease. Exact last sequence/fingerprint returns cached response only if still valid; older sequences return ignored/current lease. Higher seq sets lease=min(t+lease_duration, hard_deadline_at), saves response/fingerprint and emits LEASE_RENEWED. Equal sequence/different payload conflicts. Expired attempts always reject, including duplicate renews; stale renew acknowledgments cannot restore authority. Worker telemetry heartbeat is a different endpoint.
 
 ## Failure and expiry / bounded retry
 
-Owner failure locks job/partition/attempt. Same failure fingerprint for an already FAILED attempt returns recorded disposition; it does not retry again. A different terminal request conflicts. For fresh failure require current owner and live ACTIVE attempt; expired request returns lease_expired and leaves recovery to settle it. Failure codes are server-classified: deterministic invalid input/schema/overflow is nonretryable; worker crash, store transient error and expiry are retryable. Arbitrary worker-supplied `retryable=true` is not authoritative.
+Owner failure locks job/partition/attempt. Same failure fingerprint for an already FAILED attempt returns recorded disposition; it does not retry again. A different terminal request conflicts. For fresh failure require [live attempt ownership](SPEC.md#live-attempt-ownership--canonical-predicate), including job RUNNING and its single post-lock DB-time sample t; expired request returns lease_expired and leaves recovery to settle it. Failure codes are server-classified: deterministic invalid input/schema/overflow is nonretryable; worker crash, store transient error and expiry are retryable. Arbitrary worker-supplied `retryable=true` is not authoritative.
 
 Recovery samples candidates with ACTIVE status and lease_expires_at<=DB time using the partial index; process with ordered locks, resample time and recheck. On valid expiry set attempt EXPIRED. On valid failure set FAILED. If retryable and generation<max_attempts, set partition READY and eligible_at=t+backoff(generation); else FAILED with finished_at. Emit events and recompute job terminal status under its lock. Commit all changes together. Duplicate recovery/failure is a no-op or historical acknowledgment. Recovery does not claim, increment generation, or consume a worker slot.
 
 ## Artifact reserve, write, verify
 
-Reserve under job/partition/attempt locks after checking live ownership; insert one artifact per attempt with gateway-chosen ID/key and immutable expected hash/size/schema. Exact repeat returns same reservation; altered expectation conflicts. Gateway performs conditional object creation, then reads that exact version and computes hash/schema outside DB locks. A lost write response is reconciled by reserved key; versioning and forbidden deletion mean the object cannot disappear/reappear through runtime operations. Record VERIFIED under artifact row lock with compare-and-set RESERVED→VERIFIED; duplicate verified metadata is identical or conflict. Permanent corruption marks REJECTED; worker reports failure, or expiry recovers if worker dies. Transient store failure leaves RESERVED. Verification may complete after cancellation/expiry; it grants no publication right.
+Reserve under job/partition/attempt locks after checking [live attempt ownership](SPEC.md#live-attempt-ownership--canonical-predicate), including job RUNNING and its single post-lock DB-time sample t; insert one artifact per attempt with gateway-chosen ID/key and immutable expected hash/size/schema. Exact repeat returns same reservation; altered expectation conflicts. Gateway performs conditional object creation, then reads that exact version and computes hash/schema outside DB locks. A lost write response is reconciled by reserved key; versioning and forbidden deletion mean the object cannot disappear/reappear through runtime operations. Record VERIFIED under artifact row lock with compare-and-set RESERVED→VERIFIED; duplicate verified metadata is identical or conflict. Permanent corruption before verification marks REJECTED; worker reports failure, or expiry recovers if worker dies. Transient store failure leaves RESERVED. Verification may complete after cancellation/expiry; it grants no publication right. Corruption discovered after acceptance follows SPEC.md's read-time integrity failure policy; accepted/VERIFIED metadata is never changed and durable integrity-incident persistence is deferred.
 
 ## Publication — normative pseudocode
 
@@ -107,14 +107,8 @@ publish_result(job, partition, attempt, generation, artifact_uri, artifact_hash)
   lock artifact; require VERIFIED, exact attempt/partition/generation/hash binding
   t = clock_timestamp()  // fresh AFTER every potentially blocking lock
   conditional update partition RUNNING -> SUCCEEDED WHERE:
-      job.status IN {QUEUED, RUNNING}
-      AND partition.generation = supplied_generation
-      AND attempt.id = supplied_attempt
-      AND attempt.generation = partition.generation
-      AND attempt.worker_session_id = authenticated_session
-      AND attempt.status = ACTIVE
-      AND t < attempt.lease_expires_at
-      AND t < attempt.hard_deadline_at
+      live_attempt_ownership(job, partition, attempt, supplied_generation,
+                             authenticated_session, t)  // SPEC.md; job RUNNING
       AND NOT EXISTS accepted_result(partition)
   require affected_rows = 1; otherwise no state mutation, record rejection
   insert accepted_results(partition, attempt, generation, artifact, t, fingerprint)
@@ -136,4 +130,4 @@ Lock job. If CANCELLED return existing outcome; if SUCCEEDED/FAILED return 409 t
 
 ## Read consistency
 
-GET job and counts use one SQL statement snapshot or a read-only REPEATABLE READ transaction. Events use per-job seq cursors. Partition pages sorted ordinal are individually consistent, not a snapshot across multiple requests. The status API exposes partial_result_count and complete=false for FAILED/CANCELLED jobs. Result reads use accepted_results→artifact exact version; storage failure never substitutes another object.
+GET job and counts use one SQL statement snapshot or a read-only REPEATABLE READ transaction. Events use per-job seq cursors. Partition pages sorted ordinal are individually consistent, not a snapshot across multiple requests. The status API exposes partial_result_count and complete=false for FAILED/CANCELLED jobs. Result reads use accepted_results→artifact exact pinned version and verify expected integrity. Mismatch/corruption returns an explicit integrity failure with structured logs and appropriate metrics, without changing accepted metadata, substituting another object or automatically recomputing a terminal partition. Durable, deduplicated, queryable integrity-incident persistence is deferred; no integrity_incidents table is specified for V1.

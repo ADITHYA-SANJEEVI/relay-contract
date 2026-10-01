@@ -40,6 +40,8 @@ Terminal: SUCCEEDED, FAILED, CANCELLED. READY includes delayed retries; API retu
 
 Terminal: SUCCEEDED, FAILED, EXPIRED, CANCELLED. Upload and artifact verification do not make an attempt successful and do not extend its lease. Duplicate terminal requests can be acknowledged without transitioning state. An expired failure/renew/publish request cannot reanimate an attempt; recovery will materialize EXPIRED if not already done. Failure code records cause separately from state.
 
+An ACTIVE attempt implies its job is RUNNING: first claim changes both atomically. Renewal, fresh owner failure, artifact reservation and new publication require the canonical [live attempt ownership](SPEC.md#live-attempt-ownership--canonical-predicate) predicate; historical accepted replay remains an acknowledgment even after cancellation.
+
 ## Worker session
 
 Each process boot has a new random session ID; display worker name is not ownership. Register retry reuses the same session ID and payload. A restarted process must use a new ID.
@@ -50,7 +52,7 @@ Liveness is a derived observation: FRESH if DB time minus last_seen_at < 30s; SU
 
 ## Artifact
 
-RESERVED→VERIFIED on successful immutable object creation/reconciliation plus readback integrity and schema verification. RESERVED→REJECTED on permanent mismatch/corruption. VERIFIED and REJECTED metadata are terminal. Upload in progress is external activity, not durable ownership. Verified unaccepted artifacts are orphans and remain retained in V1. Later detected storage corruption produces a durable integrity incident and read error; it does not replace accepted metadata or silently recompute a terminal partition.
+RESERVED→VERIFIED on successful immutable object creation/reconciliation plus readback integrity and schema verification. RESERVED→REJECTED on permanent mismatch/corruption. VERIFIED and REJECTED metadata are terminal. Upload in progress is external activity, not durable ownership. Verified unaccepted artifacts are orphans and remain retained in V1. Later detected storage corruption returns an explicit integrity read failure and emits structured logs and appropriate metrics; it does not replace accepted metadata, substitute another object or automatically recompute a terminal partition. Durable, deduplicated, queryable integrity-incident persistence is deferred beyond V1.
 
 ## Concurrent operations
 

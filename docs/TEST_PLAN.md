@@ -1,6 +1,6 @@
 # Correctness tests and deterministic fault injection
 
-No tests have been executed yet. This plan is the acceptance contract for implementation. Use real PostgreSQL and the selected object store in isolated Compose projects. Every test checks both API outcomes and database invariants, plus exact accepted output identity/content where relevant. Do not substitute mocks/SQLite for lock/transaction tests. Unit tests cover pure validation and workload transforms; integration tests establish protocol behavior.
+The runtime scenarios T01–T27 below remain planned and unimplemented. M0's infrastructure/storage tests are separate, under tests/infrastructure and tests/storage_contract; observed results are recorded in M0_EVIDENCE.md. This plan is the acceptance contract for runtime implementation. Use real PostgreSQL and the selected object store in isolated Compose projects. Every runtime test checks both API outcomes and database invariants, plus exact accepted output identity/content where relevant. Do not substitute mocks/SQLite for lock/transaction tests. Unit tests cover pure validation and workload transforms; integration tests establish protocol behavior.
 
 ## Harness
 
@@ -30,7 +30,7 @@ Main deterministic suite advances lease state through a test-only DB fixture und
 | T14 | Restart API and recovery at barriers | Durable receipts/state survive; abandoned transactions roll back; new API reconciles uploads/claims |
 | T15 | Poison partition beside healthy partitions | Healthy work drains; poison fails immediately for nonretryable or exhausts retryable cap; job FAILED only when all terminal |
 | T16 | Expired before recovery; expiry while waiting for locks; duplicate/delayed renew | No fresh acceptance or renewal at/after deadline; no transaction-start clock loophole; lower renew seq never extends |
-| T17 | Corrupt/missing/wrong-attempt/wrong-version artifact | Publication refused; FKs reject cross-partition bindings; later corruption produces incident/read error without replacement |
+| T17 | Corrupt/missing/wrong-attempt/wrong-version artifact | Publication refused; FKs reject cross-partition bindings; later corruption yields explicit pinned-version integrity failure/logs/metrics without metadata replacement, substitution or automatic recomputation; durable incident persistence deferred |
 | T18 | Drop claim response; retry key; delayed retry after expiry | Original attempt returned; no extra generation; replay does not authorize execution |
 | T19 | Invalid DML with runtime role; terminal reopen attempts | Immutability, FK, unique and transition/deferred guards reject invalid rows |
 | T20 | Worker restart and duplicate telemetry | New session owns only own work; prior session ID not reused; duplicate heartbeat not renewal |

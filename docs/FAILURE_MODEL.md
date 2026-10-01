@@ -19,7 +19,7 @@ Safety scope: crash-stop/crash-recovery workers and control plane, message delay
 | Repeated fail request / duplicate retry pressure | Failure receipt/terminal attempt prevents second transition | Same recorded disposition or conflict; no extra generation |
 | Upload fails partway | No VERIFIED artifact; reserved key can be reconciled/retried | Retry upload while lease valid; eventual expiry if no progress |
 | Wrong hash/schema before publication | Artifact REJECTED, no accepted result | 422 integrity_error; classify failure, bounded retry if transient transport cause |
-| Corruption detected after acceptance | Append RESULT_INTEGRITY_ERROR incident; accepted row unchanged | Result download fails integrity check; job historic execution status remains SUCCEEDED with integrity incident exposed |
+| Corruption detected after acceptance | Accepted metadata unchanged; exact pinned-version read verifies integrity; structured logs and appropriate metrics | Explicit integrity failure; historic execution status unchanged; no substitution or automatic terminal recomputation; durable integrity-incident persistence deferred |
 | Poison partition | Deterministic error fails immediately; retryable errors consume finite budget | Partition FAILED; job drains remaining partitions then FAILED |
 | Retry exhaustion | Last attempt terminal and partition FAILED | max_attempts never exceeded; re-run needs a new job |
 | Cancel before claim | Job and READY partitions CANCELLED | No claims for job; zero accepted outputs |
@@ -45,13 +45,13 @@ Accepted bytes are verified on download. Readback/schema verification detects co
 
 | Risk | Impact | Mitigation / evidence / owner milestone |
 |---|---|---|
-| Artifact store compatibility differs from S3 | Broken byte immutability | Conditional-write/version/readback tests block M0; switch local backend if unsupported |
+| Artifact store compatibility differs from S3 | Broken byte immutability | Conditional-write/version/readback tests block M0; backend replacement requires architecture review |
 | Job row and scheduler serialization | Throughput ceiling, cancellation contention | Short transactions, no I/O under locks, measure wait time at M6; document ceiling before redesign |
 | Publication uses transaction-start clock | Expired attempt accepted | Fresh post-lock clock test T16; code-review gate M3 |
 | Cross-table consistency omissions | Manifest points to wrong attempt | Composite FKs and deferred guards; invalid-DML tests M1/M3 |
 | Supervisor renews stuck work forever | Lost liveness | Absolute hard deadline; poison/hang tests M4 |
 | Lost claim response consumes work twice | Extra attempts / wasted work | Claim receipts and per-session ACTIVE uniqueness; T18 |
-| Corruption after acceptance | Unreadable historic success | Pinned versions, no delete permissions, checksum reads, visible incident; no silent replacement |
+| Corruption after acceptance | Unreadable historic success | Pinned versions, no delete permissions, checksum reads, explicit failure/logs/metrics; no silent replacement; durable incident persistence deferred |
 | Unbounded orphan/event retention | Disk exhaustion | V1 size limits, capacity metrics, explicit operator cleanup only outside active run; GC deferred |
 | Long cancellation transaction | Timeouts for large jobs | 4,096 partition cap, stress at limit before claiming it; no partial commit |
 | Flaky timing tests | False confidence | Barriers and controlled lease expiry; small separate real-clock suite |

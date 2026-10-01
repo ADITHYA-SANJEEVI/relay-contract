@@ -6,7 +6,7 @@ Normative with SPEC.md. Safety must hold even when liveness fails. The trusted b
 |---|---|---|---|
 | I01 | A partition's generation never decreases; each successful claim increases it by exactly one | Partition row lock; generation update and attempt insert in same transaction; unique partition/generation | T03, T06, T12 |
 | I02 | At most one ACTIVE attempt per partition | Partial unique index on ACTIVE attempts; latest generation FK and transition checks | T06, T12 |
-| I03 | A new acceptance requires current attempt, generation, owner session, ACTIVE state and unexpired lease/lifetime | Fenced publication predicate after locks, fresh DB time | T03, T04, T16 |
+| I03 | A new acceptance requires the canonical live attempt ownership predicate in SPEC.md, including job RUNNING | Fenced publication predicate after the final authoritative-state lock, one fresh DB-time sample | T03, T04, T16 |
 | I04 | At most one authoritative result per immutable partition | accepted_results PK partition_id, unique artifact_id, immutable result rows | T04, T05, T12 |
 | I05 | Every accepted result points to a VERIFIED output of the same recorded attempt, partition and generation | Composite FKs, state guard and deferred consistency checks | T01, T17 |
 | I06 | SUCCEEDED partition iff exactly one accepted result; its attempt is SUCCEEDED | Atomic publication and deferred consistency trigger | T01, T10, T11 |

@@ -12,7 +12,7 @@ Local V1 uses an operator token for client actions and separate worker bootstrap
 | PUT /inputs/{id}/content | Exact bytes; expected hash/size established by reservation | 200 VERIFIED input with version/hash/counts after readback; existing different bytes 409/422; transient 503 leaves reconcilable reservation |
 | GET /inputs/{id} | Operator authentication | State, immutable metadata, verification errors |
 | POST /jobs | Required Idempotency-Key; contract below | 201 job plus definition hash/status; replay 200 same ID; same key/different definition 409 |
-| GET /jobs/{id} | None | Identity, definition_hash, status, timestamps, partition/attempt counts, next_event_seq, partial_result_count, complete, integrity incidents |
+| GET /jobs/{id} | None | Identity, definition_hash, status, timestamps, partition/attempt counts, next_event_seq, partial_result_count, complete |
 | POST /jobs/{id}/cancel | `{reason}` bounded 1 KiB | 200 CANCELLED with preserved accepted count; repeated cancel returns original reason/time; terminal SUCCEEDED/FAILED 409 |
 | GET /jobs/{id}/partitions | `after_ordinal`, `limit`, optional status | Ordered partition records and next cursor; state, generation, eligible_at, current attempt/lease, terminal error, accepted artifact ID |
 | GET /jobs/{id}/events | `after_seq`, `limit` | Ordered durable events, next cursor; polling allowed; no websocket dependency |
@@ -36,6 +36,8 @@ Ordinal values must be contiguous starting at zero. API canonicalizes validated 
 
 ## Worker endpoints
 
+Renewal, fresh owner failure, live-attempt artifact reservation and new completion require [live attempt ownership](SPEC.md#live-attempt-ownership--canonical-predicate), including job RUNNING. Exact historical accepted completion replay remains valid after cancellation. Individual endpoints may impose additional checks, not weaken that predicate.
+
 | Method/path | Request | Response / idempotency |
 |---|---|---|
 | POST /workers/register | `{session_id,session_secret,display_name,deployment_workload_digest}` plus bootstrap auth | 201 REGISTERED; exact retry 200; changed binding 409; session_secret never returned/logged |
@@ -57,6 +59,8 @@ Complete response includes accepted_result `{partition_id,attempt_id,generation,
 Conflict codes: stale_generation, lease_expired, attempt_terminal, job_cancelled, terminal_job, result_conflict, artifact_not_verified, artifact_identity_mismatch, idempotency_conflict, worker_busy, worker_draining. A failed validity predicate does not consume another attempt. Request_id is reused after transport uncertainty; a deliberate new publication attempt after an earlier known rejection gets a new request_id.
 
 ## Observability
+
+Post-acceptance integrity failures on exact pinned-version reads are explicit errors with structured logs and appropriate metrics. Accepted metadata is unchanged; another object is never substituted and a terminal partition is not automatically recomputed. Durable, deduplicated, queryable integrity-incident persistence and a query API for it are deferred beyond V1.
 
 `GET /health/live` reports process liveliness; `GET /health/ready` checks DB connection, migration version and store capability readiness. Liveness does not depend on stores. `GET /metrics` uses low-cardinality labels: status, operation, workload version and rejection reason; never job/partition IDs as metric labels.
 

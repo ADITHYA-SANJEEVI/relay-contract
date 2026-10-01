@@ -1,6 +1,8 @@
 # Relay V1 — system contract
 
-Contract version: 1.0, 2 October 2026. Status: architecture baseline for review; no implementation or experimental results exist in this package. Changes to safety semantics require a documented contract revision and corresponding tests. This package is scoped exclusively to Relay.
+Contract version: 1.0, 2 October 2026. Status: accepted architecture baseline with the M0 clarifications below; execution runtime remains unimplemented. M0 infrastructure evidence is separate in M0_EVIDENCE.md. Changes to safety semantics require a documented contract revision and corresponding tests. This package is scoped exclusively to Relay.
+
+The accepted M0 clarifications A1–A3 are recorded in [decisions/2026-10-02-m0-contract-amendments.md](decisions/2026-10-02-m0-contract-amendments.md). They strengthen/clarify contract 1.0 without changing its primary guarantee.
 
 ## Purpose and guarantee
 
@@ -11,6 +13,24 @@ This is not exactly-once computation or exactly-once external side effects. Work
 The acceptance linearization point is the final fenced database mutation inside a transaction that subsequently commits. Lease validity is evaluated there using freshly sampled DB time after acquiring locks. It is NOT a guarantee that the lease remains unexpired at response delivery or at the physical instant WAL commits. A process or DB can pause between validation and commit. While paused with locks held, reassignment and cancellation cannot pass it. If it aborts, acceptance never occurred. This precise definition avoids an unenforceable wall-clock promise.
 
 ## Architecture
+
+### Live attempt ownership — canonical predicate
+
+Renewal, fresh owner failure reporting, live-attempt artifact reservation and new result publication require **live attempt ownership**. All of the following must hold together:
+
+- job status = `RUNNING`;
+- partition status = `RUNNING`;
+- partition generation = supplied generation;
+- supplied attempt is the partition's current/latest attempt;
+- attempt generation = supplied generation;
+- attempt worker session = authenticated worker session;
+- attempt status = `ACTIVE`;
+- `t < attempt.lease_expires_at`;
+- `t < attempt.hard_deadline_at`.
+
+`t` is one database-time sample from `clock_timestamp()`, taken **after the final potentially blocking authoritative-state lock has been acquired**. Operations may add stricter predicates, never weaken this definition. The first valid claim atomically changes the job from QUEUED to RUNNING, so an ACTIVE attempt implies its job is RUNNING. QUEUED is valid for initial claim selection, not for these live-owner operations.
+
+Historical acknowledgments create no new authority. In particular, exact replay of an already accepted result is checked before current ownership/job-status predicates and may acknowledge that acceptance after job cancellation.
 
 ```mermaid
 flowchart TD
@@ -61,6 +81,8 @@ Job definition digest covers input versions and hashes, workload/container diges
 One output per attempt: `/jobs/{job_id}/partitions/{ordinal}/attempt-{generation}/{artifact_id}/output.parquet`. Artifact ID and identity are reserved in the DB before upload. Use conditional create and pin the returned store version ID. Readback verification computes SHA-256 over actual bytes and validates Parquet readability/schema. ETag and worker-supplied metadata are not proofs of SHA-256. Result manifest references artifact ID, whose immutable metadata includes the version ID, hash and size. Only accepted manifests are used by consumers. Partial results may be inspected, but job output is advertised as complete only for SUCCEEDED jobs.
 
 All uploads flow through the gateway. A retry streams/reads the same reserved object; an existing object with a different hash yields a conflict. A crash after the store write but before metadata commit is reconciled by inspecting the reserved key/version and verifying bytes. No runtime deletes, key reuse, lifecycle expiration or orphan GC in V1. This deliberately trades disk usage for simpler correctness. Storage administrators remain trusted. Loss of a volume is not covered by worker-failure recovery.
+
+After acceptance, reads address the exact pinned version and verify expected integrity. A detected mismatch/corruption returns an explicit integrity failure and emits structured logs and appropriate metrics. Accepted result metadata remains immutable: no silent substitution or automatic recomputation of a terminal partition. Durable, deduplicated, queryable integrity-incident persistence is deferred beyond V1; no V1 API or schema promises that subsystem.
 
 ## Reference workload
 
