@@ -1,18 +1,18 @@
 # Relay architecture contract — v1.0
 
-Prepared 2 October 2026 from the two supplied Relay briefs. This checkout contains the architecture contract, accepted [M0 amendments](docs/decisions/2026-10-02-m0-contract-amendments.md), and M0 infrastructure compatibility tests. The Relay execution runtime and benchmarks remain unimplemented.
+Prepared 2 October 2026 from the two supplied Relay briefs. This checkout contains the architecture contract, accepted [M0 amendments](docs/decisions/2026-10-02-m0-contract-amendments.md), M0 infrastructure compatibility tests, and the M1A PostgreSQL persistence foundation. The Relay execution runtime and benchmarks remain unimplemented.
 
 Start with [docs/SPEC.md](docs/SPEC.md), then follow its reading order. The nine documents include the architecture diagram, technology choices, schema and transactional pseudocode, state machines, failure outcomes, APIs, invariant-driven tests, reproducible fault/benchmark methodology, risk register and sequential milestones.
 
 Key decisions: at-most-one accepted result per immutable partition; fresh DB-time fencing under locks; version-pinned artifacts; explicit cancellation ordering; bounded retries and absolute attempt lifetimes; no claims of universal exactly-once execution.
 
-This checkout is locally version-controlled. Remote creation is conditional on established authentication and unambiguous account/repository intent under the M0 task; it does not block local validation. No remote backup is implied.
+The existing origin is private. M0 and M1A validation evidence is recorded separately; remote synchronization must be verified against the actual Git HEAD.
 
 ## M0 prerequisites and setup
 
 Use Python 3.12, Docker Desktop running Linux containers, Docker Compose v2, and network access to PyPI, Docker Hub, GitHub and the Go module proxy. The first MinIO build compiles source and takes longer than later cached builds. Services bind to localhost. This Compose project is for trusted local development.
 
-The minimal dependencies are pinned in `pyproject.toml`; `uv.lock` fixes transitive versions and distribution hashes. uv itself is pinned to 0.12.21 in the bootstrap command. FastAPI, SQLAlchemy, Alembic and PyArrow are architecture choices for later milestones, not M0 dependencies.
+The minimal dependencies are pinned in `pyproject.toml`; `uv.lock` fixes transitive versions and distribution hashes. uv itself is pinned to 0.12.21 in the bootstrap command. M1A adds SQLAlchemy 2 and Alembic to the retained M0 dependencies. FastAPI and PyArrow remain unimplemented later-milestone choices.
 
 Run in PowerShell from the detected checkout:
 
@@ -53,6 +53,26 @@ Tests first require the actual pinned Compose services to be healthy. They conne
 The PostgreSQL tests check server major 18, fresh `clock_timestamp()`, commit/rollback visibility, distinct backend connections and real `FOR UPDATE` contention. S1–S8 check API-reported versioning, create-only requests, opaque explicit-version reads, SHA-256 over actual readback, concurrent/repeated conflicting creates, runtime deletion denial, credential separation and reply-loss/retry behavior. Reply loss is injected after a real successful write at the SDK response boundary; this is not a network-partition or full artifact-reconciliation test. Payloads are opaque test bytes, not a Parquet workload.
 
 M0 can establish reproducible infrastructure and the tested storage compatibility properties. It does not establish fault-tolerant execution, workers, claims, leases, retries, recovery, generation/publication fencing, cancellation correctness, exactly-once behavior, benchmark performance or production readiness. Those remain the sequential milestones in [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). Observed validation is recorded in [M0_EVIDENCE.md](docs/M0_EVIDENCE.md).
+
+## M1A persistence setup and gates
+
+After M0 is green, run these commands, checking each exit status:
+
+```powershell
+Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
+.\.venv\Scripts\uv.exe sync --locked --cache-dir .cache/uv
+.\.venv\Scripts\python.exe scripts/init_db.py
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m alembic current
+.\.venv\Scripts\python.exe -m pytest tests/persistence -v -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/infrastructure tests/storage_contract -v -s --maxfail=1
+```
+
+`init_db.py` uses the existing local infrastructure authority to create the separate `relay` database and `relay_runtime` login. It adds a random runtime password to ignored `.env` when needed, rejects an existing privileged runtime role, and is safe to repeat on this local setup. The retained `relay_m0` database and Docker volumes are preserved. Migration credentials are `relay_m0`; application connections default to `relay_runtime` with no admin fallback. Bootstrap must precede migration because the migration grants privileges to that role.
+
+Alembic is the deployed DDL authority; runtime startup never calls `metadata.create_all()`. The initial migration uses explicit reviewed SQL, adds the circular latest-attempt FK after both tables exist, and seeds scheduler `(1,1)`. Persistence tests apply Alembic to fresh UUID-named databases on the actual Compose PostgreSQL service. Negative writes authenticate as the runtime login; the migration-owner history test is labeled separately. Downgrade/upgrade testing drops only its own disposable database. Do not downgrade the retained application database merely to rerun tests.
+
+`src/relay/db` contains explicit Core metadata, psycopg engine configuration, explicit session/transaction construction, and the documented lock order. pytest and Alembic configure the `src` import path. The default engine sets READ COMMITTED, synchronous commit, a 2s lock timeout and 5s statement/idle-transaction timeouts. Future services must explicitly lock rows in the contract order and sample fresh DB time afterward. Deferred triggers check transaction state; they do not authenticate requests, enforce the live lease predicate or serialize concurrent operations. See [M1A_EVIDENCE.md](docs/M1A_EVIDENCE.md) for observed constraint evidence and remaining obligations.
 
 ## Pinned candidate build
 
