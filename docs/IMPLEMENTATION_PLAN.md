@@ -1,6 +1,6 @@
 # Implementation sequence and review gates
 
-This package contains specifications only. Do not start application code until the contract is accepted for implementation. The first implementation milestone is a small executable vertical slice; fault tolerance is then added through gated milestones. Never call an intermediate milestone the complete V1.
+This package contains the accepted architecture specifications and M0 infrastructure compatibility gates; the execution runtime remains unimplemented. Application work starts at M1 only after M0 passes. Fault tolerance is added through later gated milestones. Never call an intermediate milestone the complete V1.
 
 ## Planned repository structure
 
@@ -49,13 +49,13 @@ relay/
   scripts/
 ```
 
-Only docs and repository hygiene are included now. No placeholder application modules that imply implementation exists. This specification checkout may be initialized in Git immediately. A remote private repository must be created/pushed during M0 when the intended account and access are available; do not claim a remote backup without push verification.
+The planned tree is not a mandate to create future placeholder modules. M0 adds only infrastructure, minimal Python metadata, setup and real-service tests. Existing Git history is preserved. Under the explicit M0 task, private remote creation/push is conditional on established authentication and unambiguous intended account/repository; it does not block local validation. Do not claim a remote backup without push verification.
 
 ## Sequential milestones
 
 | Milestone | Implement | Exit evidence / claim allowed |
 |---|---|---|
-| M0 — contract and dependency gate | Review docs, create private remote, lock versions/digests, Compose DB/store, verify storage capabilities | Conditional create, exact-version read, readback SHA and runtime delete-denial pass. Contract amendments recorded. No runtime guarantee claimed |
+| M0 — contract and dependency gate | Record accepted amendments, lock versions/digests, Compose DB/store, verify real DB/storage capabilities; private remote only when safely established | PostgreSQL 18 connection/clock/transaction/locking tests and storage S1–S8 pass. Contract amendments recorded. No runtime guarantee claimed |
 | M1 — smallest useful slice | Migrations/core tables, immutable inputs and manifest validation, submit/status, one worker claim, reference transform, reserve/upload/verify, fenced completion, results | T01, basic T05/T17/T19/T21/T22 pass with real DB/store; one submitted job actually returns correct accepted output. No crash recovery claim yet |
 | M2 — concurrent ownership | Worker sessions and auth, multiple processes, claim receipts, lease renewals, hard deadline, DB guards/events and scheduler tickets | T06/T12/T16/T18/T20 pass; contention does not duplicate ownership; leases reject expired publication even before reaper exists |
 | M3 — recovery and fencing | Recovery loop, expiry, deterministic backoff, bounded retries, unknown-commit reconciliation | T02–T04/T09–T11/T23/T26 pass, including exact 4→5 trace. Claim recoverable crash/lease behavior only now |
@@ -90,6 +90,6 @@ Single PostgreSQL authority; per-job transaction serialization; fair claim ticke
 1. Select/pin a local object-store build only after conditional-write/version/permission tests. Failure blocks M0 rather than weakening artifact guarantees.
 2. Verify 4,096-partition cancellation and descriptor bounds on actual hardware. If timeouts make the bound unusable, reduce the documented cap in a contract amendment before release; do not make partial cancellation observable.
 3. Freeze dataset size after resource-only pilot, before comparative measurements.
-4. Supply the intended private Git remote during M0. This document package alone is not evidence of a pushed remote or implemented system.
+4. Create a private Git remote during M0 only when authentication and intended account/repository are safely established. Otherwise keep local and report the reason. This package alone is not evidence of a pushed remote or implemented execution runtime.
 
 No unresolved correctness decision is delegated to the implementation agent. If a constraint proves infeasible, return with a specific counterexample and proposed contract amendment rather than silently removing it.
