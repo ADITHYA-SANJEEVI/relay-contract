@@ -8,6 +8,8 @@ values = {
     "POSTGRES_PASSWORD": secrets.token_hex(24),
     "POSTGRES_PORT": "54328",
     "POSTGRES_RUNTIME_PASSWORD": secrets.token_hex(24),
+    "RELAY_OPERATOR_TOKEN": secrets.token_hex(32),
+    "RELAY_WORKER_BOOTSTRAP_TOKEN": secrets.token_hex(32),
     "S3_PORT": "9000",
     "S3_BUCKET": "relay-m0-contract",
     "S3_ADMIN_ACCESS_KEY": "admin" + secrets.token_hex(8),

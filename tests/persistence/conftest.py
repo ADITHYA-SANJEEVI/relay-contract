@@ -7,6 +7,7 @@ import psycopg
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from psycopg import sql
 
 from relay.db.connection import database_url, make_engine
@@ -45,7 +46,8 @@ def migrate(settings, name, target, *, downgrade=False):
 def persistence_database(isolated_database, settings):
     with isolated_database() as name:
         migrate(settings, name, "head")
-        print(f"M1A isolated PostgreSQL database: {name}; revision=0001_persistence")
+        head = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+        print(f"M1A isolated PostgreSQL database: {name}; revision={head}")
         yield name
 
 

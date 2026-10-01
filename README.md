@@ -1,18 +1,18 @@
 # Relay architecture contract — v1.0
 
-Prepared 2 October 2026 from the two supplied Relay briefs. This checkout contains the architecture contract, accepted [M0 amendments](docs/decisions/2026-10-02-m0-contract-amendments.md), M0 infrastructure compatibility tests, and the M1A PostgreSQL persistence foundation. The Relay execution runtime and benchmarks remain unimplemented.
+Prepared 2 October 2026 from the two supplied Relay briefs. This checkout contains the architecture contract, accepted [M0 amendments](docs/decisions/2026-10-02-m0-contract-amendments.md), M0 infrastructure gates, M1A persistence and the M1B path through a VERIFIED, unaccepted artifact. Authoritative publication, recovery and benchmarks remain unimplemented.
 
 Start with [docs/SPEC.md](docs/SPEC.md), then follow its reading order. The nine documents include the architecture diagram, technology choices, schema and transactional pseudocode, state machines, failure outcomes, APIs, invariant-driven tests, reproducible fault/benchmark methodology, risk register and sequential milestones.
 
 Key decisions: at-most-one accepted result per immutable partition; fresh DB-time fencing under locks; version-pinned artifacts; explicit cancellation ordering; bounded retries and absolute attempt lifetimes; no claims of universal exactly-once execution.
 
-The existing origin is private. M0 and M1A validation evidence is recorded separately; remote synchronization must be verified against the actual Git HEAD.
+The existing origin is private. Milestone validation evidence is recorded separately; remote synchronization must be verified against the actual Git HEAD.
 
 ## M0 prerequisites and setup
 
 Use Python 3.12, Docker Desktop running Linux containers, Docker Compose v2, and network access to PyPI, Docker Hub, GitHub and the Go module proxy. The first MinIO build compiles source and takes longer than later cached builds. Services bind to localhost. This Compose project is for trusted local development.
 
-The minimal dependencies are pinned in `pyproject.toml`; `uv.lock` fixes transitive versions and distribution hashes. uv itself is pinned to 0.12.21 in the bootstrap command. M1A adds SQLAlchemy 2 and Alembic to the retained M0 dependencies. FastAPI and PyArrow remain unimplemented later-milestone choices.
+The minimal dependencies are pinned in `pyproject.toml`; `uv.lock` fixes transitive versions and distribution hashes. uv itself is pinned to 0.12.21 in the bootstrap command. M1A adds SQLAlchemy 2 and Alembic; M1B adds FastAPI, uvicorn, PyArrow and HTTPX. Earlier package versions remain retained.
 
 Run in PowerShell from the detected checkout:
 
@@ -73,6 +73,44 @@ Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
 Alembic is the deployed DDL authority; runtime startup never calls `metadata.create_all()`. The initial migration uses explicit reviewed SQL, adds the circular latest-attempt FK after both tables exist, and seeds scheduler `(1,1)`. Persistence tests apply Alembic to fresh UUID-named databases on the actual Compose PostgreSQL service. Negative writes authenticate as the runtime login; the migration-owner history test is labeled separately. Downgrade/upgrade testing drops only its own disposable database. Do not downgrade the retained application database merely to rerun tests.
 
 `src/relay/db` contains explicit Core metadata, psycopg engine configuration, explicit session/transaction construction, and the documented lock order. pytest and Alembic configure the `src` import path. The default engine sets READ COMMITTED, synchronous commit, a 2s lock timeout and 5s statement/idle-transaction timeouts. Future services must explicitly lock rows in the contract order and sample fresh DB time afterward. Deferred triggers check transaction state; they do not authenticate requests, enforce the live lease predicate or serialize concurrent operations. See [M1A_EVIDENCE.md](docs/M1A_EVIDENCE.md) for observed constraint evidence and remaining obligations.
+
+## M1B local API and worker
+
+After the regression gates pass, configure local API tokens, migrate and start the API in a terminal:
+
+```powershell
+Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
+.\.venv\Scripts\uv.exe sync --locked --cache-dir .cache/uv
+.\.venv\Scripts\python.exe scripts/init_api_env.py
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe scripts/serve.py --port 8000
+```
+
+The API binds only `127.0.0.1`. `/health/live` checks process liveness; `/health/ready` checks the runtime DB connection, revision `0002_readiness` via a read-only view, and store authentication/reachability. The M0 gates remain the capability checks for versioning/conditional creation/deletion denial. The view grants no direct runtime access to Alembic's table and changes no existing M1A guard or DML privilege. API configuration retains only runtime database/store credentials and the two API tokens. `init_api_env.py` adds missing random tokens to ignored `.env` and preserves existing ones.
+
+Operator HTTP operations use `Authorization: Bearer <local operator token>`. Registration uses the distinct bootstrap token. After registration, a worker authenticates with its own client-held secret and `X-Worker-Session`. Neither secret appears in responses or stored plaintext. Request bodies reject unknown fields; bigint values use decimal strings. See [API.md](docs/API.md) for submission shape and [REFERENCE_WORKLOAD.md](docs/REFERENCE_WORKLOAD.md) for exact schemas/rules. Input execution format is canonical Parquet; no CSV importer is implemented.
+
+Once a verified input and job are submitted, run one worker from another terminal. Set `RELAY_WORKER_BOOTSTRAP_TOKEN` in that terminal to the configured bootstrap credential without putting it in command arguments or logs:
+
+```powershell
+Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
+.\.venv\Scripts\python.exe scripts/run_worker.py --base-url http://127.0.0.1:8000 --polls 1
+```
+
+The worker creates a fresh boot UUID/secret, registers, claims, downloads only assigned slices through the API, executes, reserves/uploads an output and exits at VERIFIED. It never reads `.env` or uses database/store clients. The launcher strips ambient infrastructure/operator credentials. Its JSON result reports `VERIFIED_UNACCEPTED`, identities, hash and deterministic counters. When no work exists it reports `NO_WORK`. No automatic renewal or claim replay transport loop is implemented; a replayed claim is queried and checked against DB time before execution.
+
+Required endpoints are live/ready, input reserve/upload/read, job submit/read/partitions/events, worker register/claim, attempt read, assigned input-slice read and artifact reserve/upload. There are no complete/fail/renew/cancel endpoints or success transitions. Reads expose actual accepted rows only. A VERIFIED artifact leaves its attempt ACTIVE and partition/job RUNNING, with `complete=false` and zero accepted results.
+
+Run M1B and regressions separately, checking each exit status:
+
+```powershell
+Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
+.\.venv\Scripts\python.exe -m pytest tests/unit tests/integration -v -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/persistence -v -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/infrastructure tests/storage_contract -v -s --maxfail=1
+```
+
+Integration tests launch a real API process and a credential-restricted independent worker, use disposable UUID-named databases on Compose PostgreSQL, and retain immutable test objects in MinIO. Harness temporary credentials/logs are confined to ignored workspace cache children and removed after their processes exit. The storage observer uses real gateway calls and checks both pool state and PostgreSQL transaction state; it does not mock S3. [M1B_EVIDENCE.md](docs/M1B_EVIDENCE.md) records the retained application-database trace and test outcomes. Full T01 and M1C are not complete.
 
 ## Pinned candidate build
 

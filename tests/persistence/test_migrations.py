@@ -1,12 +1,16 @@
 import sqlalchemy as sa
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from relay.db.connection import database_url, make_engine, session_factory
 from relay.db.lock_order import LOCK_ORDER
 from relay.db.schema import metadata
 
 from .conftest import migrate
+
+HEAD_REVISION = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
 
 
 def test_clean_upgrade_downgrade_upgrade(isolated_database, settings):
@@ -15,7 +19,7 @@ def test_clean_upgrade_downgrade_upgrade(isolated_database, settings):
         try:
             migrate(settings, name, "head")
             with engine.connect() as c:
-                assert c.scalar(sa.text("SELECT version_num FROM alembic_version")) == "0001_persistence"
+                assert c.scalar(sa.text("SELECT version_num FROM alembic_version")) == HEAD_REVISION
                 assert set(sa.inspect(c).get_table_names()) == set(metadata.tables) | {"alembic_version"}
                 assert c.execute(sa.text("SELECT id,next_ticket FROM scheduler_state")).all() == [(1, 1)]
             migrate(settings, name, "base", downgrade=True)
@@ -26,9 +30,9 @@ def test_clean_upgrade_downgrade_upgrade(isolated_database, settings):
             # A repeat upgrade is a no-op, not a second seed or duplicate DDL.
             migrate(settings, name, "head")
             with engine.connect() as c:
-                assert c.scalar(sa.text("SELECT version_num FROM alembic_version")) == "0001_persistence"
+                assert c.scalar(sa.text("SELECT version_num FROM alembic_version")) == HEAD_REVISION
                 assert c.scalar(sa.text("SELECT count(*) FROM scheduler_state")) == 1
-            print("clean upgrade -> base downgrade -> upgrade -> repeat upgrade: head=0001_persistence")
+            print(f"clean upgrade -> base downgrade -> upgrade -> repeat upgrade: head={HEAD_REVISION}")
         finally:
             engine.dispose()
 
