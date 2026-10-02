@@ -1,4 +1,4 @@
-"""Explicit runtime-only transactions. No renewal or recovery settlement."""
+"""Explicit runtime-only transactions. No recovery settlement."""
 
 import hashlib
 import secrets
@@ -248,7 +248,7 @@ class Control:
                 .where(db.partition_inputs.c.partition_id == partition["id"]).order_by(db.partition_inputs.c.slice_ordinal)).mappings().all()
             response = wire(dict(job_id=job["id"], partition_id=partition["id"], ordinal=partition["ordinal"],
                 attempt_id=attempt, generation=str(generation), worker_session_id=worker, claimed_at=t,
-                lease_expires_at=lease, hard_deadline_at=hard, renew_after_seconds=10,
+                lease_expires_at=lease, hard_deadline_at=hard, renew_after_seconds=min(10, job["lease_seconds"] / 3),
                 workload=WORKLOAD, parameters=job["parameters"], replay=False,
                 inputs=[dict(input_artifact_id=s["input_artifact_id"], object_version=s["object_version"],
                     sha256=s["sha256"], schema_hash=s["schema_hash"], first_row=str(s["first_row"]), row_count=str(s["row_count"]),

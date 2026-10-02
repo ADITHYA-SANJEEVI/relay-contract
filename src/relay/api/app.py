@@ -21,10 +21,11 @@ from relay.config import load_settings
 from relay.control.common import Rejection, one, wire
 from relay.control.service import Control, artifact_response, input_response
 from relay.control.publication import accepted_response
+from relay.control.leases import heartbeat, lifecycle, renew
 from relay.db import schema as db
 from relay.db.connection import database_url, make_engine
 
-from .models import ArtifactReservation, Claim, Completion, InputReservation, Registration, Submission
+from .models import ArtifactReservation, Claim, Completion, Heartbeat, InputReservation, Registration, Renewal, Submission
 
 logger = logging.getLogger("relay.api")
 
@@ -57,6 +58,8 @@ def create_app(settings):
 
     @app.exception_handler(Rejection)
     async def reject(request, error):
+        logger.info(json.dumps({"component": "control", "operation": request.url.path.rsplit("/", 1)[-1],
+            "outcome": "rejected", "error_code": error.code, "request_id": request.state.request_id}))
         return error_response(request, error.code, error.status,
                               "unknown" if error.status == 503 else "rejected")
 
@@ -70,6 +73,9 @@ def create_app(settings):
         state = getattr(getattr(error, "orig", None), "sqlstate", None)
         known_abort = isinstance(error, DBAPIError) and not error.connection_invalidated and state in (
             "23503", "23505", "23514", "40001", "40P01", "55P03", "57014")
+        logger.info(json.dumps({"component": "control", "operation": request.url.path.rsplit("/", 1)[-1],
+            "outcome": "contention_abort" if known_abort and state in ("40001", "40P01", "55P03") else
+                "database_abort" if known_abort else "unknown", "request_id": request.state.request_id}))
         return error_response(request, "database_unavailable", 503, "not_committed" if known_abort else "unknown")
 
     @app.exception_handler(Exception)
@@ -244,7 +250,45 @@ def create_app(settings):
         if identity != session: raise Rejection("wrong_owner", 403)
         await model_body(request, Claim)
         status, response = await run_in_threadpool(control.claim, identity, key(request))
+        logger.info(json.dumps({"component": "control", "operation": "claim", "status": status,
+            "worker_session_id": str(identity), "outcome": "no_work" if status == 204 else "replay" if status == 200 else "claimed"}))
         return Response(status_code=204) if status == 204 else JSONResponse(status_code=status, content=response)
+
+    @app.post("/v1/workers/{session}/heartbeat")
+    async def worker_heartbeat(session: UUID, request: Request):
+        identity = await run_in_threadpool(worker, request)
+        if identity != session: raise Rejection("wrong_owner", 403)
+        model = await model_body(request, Heartbeat)
+        response = await run_in_threadpool(heartbeat, engine, identity, model.sequence)
+        logger.info(json.dumps({"component": "control", "operation": "heartbeat", "worker_session_id": str(identity),
+            "outcome": "applied" if response["applied"] else "ignored"}))
+        return response
+
+    async def worker_lifecycle(session, operation, request):
+        identity = await run_in_threadpool(worker, request)
+        if identity != session: raise Rejection("wrong_owner", 403)
+        await model_body(request, Claim)
+        response = await run_in_threadpool(lifecycle, engine, identity, "DRAINING" if operation == "drain" else "STOPPED")
+        logger.info(json.dumps({"component": "control", "operation": operation,
+            "worker_session_id": str(identity), "state": response["state"]}))
+        return response
+
+    @app.post("/v1/workers/{session}/drain")
+    async def worker_drain(session: UUID, request: Request):
+        return await worker_lifecycle(session, "drain", request)
+
+    @app.post("/v1/workers/{session}/stop")
+    async def worker_stop(session: UUID, request: Request):
+        return await worker_lifecycle(session, "stop", request)
+
+    @app.post("/v1/attempts/{identity}/renew")
+    async def attempt_renew(identity: UUID, request: Request):
+        session = await run_in_threadpool(worker, request)
+        model = await model_body(request, Renewal)
+        response, outcome = await run_in_threadpool(renew, engine, session, identity, model)
+        logger.info(json.dumps({"component": "control", "operation": "renew", "attempt_id": str(identity),
+            "sequence": model.sequence, "outcome": outcome}))
+        return response
 
     @app.get("/v1/attempts/{identity}")
     def get_attempt(identity: UUID, request: Request):
@@ -259,6 +303,7 @@ def create_app(settings):
             t = c.scalar(sa.select(sa.func.clock_timestamp()))
         return wire({k: row[k] for k in ("id", "partition_id", "worker_session_id", "status", "claimed_at", "lease_expires_at", "hard_deadline_at")} | {
             "generation": str(row["generation"]), "current_generation": str(partition["generation"]), "db_time": t,
+            "last_renew_seq": str(row["last_renew_seq"]), "last_renew_response": row["last_renew_response"],
             "job_status": job["status"], "partition_status": partition["status"],
             "artifact": artifact_response(artifact) if artifact else None,
             "accepted_result": accepted_response(accepted, artifact) if accepted else None})

@@ -13,9 +13,17 @@ from dotenv import dotenv_values
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class LocalSettings(dict):
+    """Pytest includes fixture arguments on failure; never render credentials."""
+    def __repr__(self):
+        return "LocalSettings(<redacted>)"
+
+    __str__ = __repr__
+
+
 @pytest.fixture(scope="session")
 def settings():
-    values = dotenv_values(ROOT / ".env")
+    values = LocalSettings(dotenv_values(ROOT / ".env"))
     for name in (
         "POSTGRES_PASSWORD",
         "POSTGRES_PORT",

@@ -413,6 +413,7 @@ def test_auth_unknown_fields_and_unimplemented_endpoints(api):
     assert unknown.status_code == 422 and "secret" not in unknown.text and "traceback" not in unknown.text.lower()
     # M1C adds complete; its unauthenticated path must still reject access.
     assert api.client.post(f"/v1/attempts/{uuid4()}/complete").status_code == 401
-    for operation in ("renew", "fail"):
-        assert api.client.post(f"/v1/attempts/{uuid4()}/{operation}").status_code == 404
+    # M2 adds renewal; retain auth denial and the remaining forbidden endpoints.
+    assert api.client.post(f"/v1/attempts/{uuid4()}/renew").status_code == 401
+    assert api.client.post(f"/v1/attempts/{uuid4()}/fail").status_code == 404
     assert api.client.post(f"/v1/jobs/{uuid4()}/cancel").status_code == 404

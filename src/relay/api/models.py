@@ -1,11 +1,20 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt
 
 Hash = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 Counter = Annotated[str, Field(pattern=r"^(0|[1-9][0-9]{0,18})$")]
 Ordinal = Annotated[StrictInt, Field(ge=0, le=4095)]
+
+
+def bounded_sequence(value):
+    if int(value) > 9223372036854775807:
+        raise ValueError("sequence_out_of_range")
+    return value
+
+
+Sequence = Annotated[Counter, AfterValidator(bounded_sequence)]
 
 
 class ContractModel(BaseModel):
@@ -69,6 +78,17 @@ class Registration(ContractModel):
 
 class Claim(ContractModel):
     pass
+
+
+class Heartbeat(ContractModel):
+    sequence: Sequence
+
+
+class Renewal(ContractModel):
+    job_id: UUID
+    partition_id: UUID
+    generation: Counter
+    sequence: Sequence
 
 
 class ArtifactReservation(ContractModel):
