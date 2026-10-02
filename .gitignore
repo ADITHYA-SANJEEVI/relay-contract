@@ -37,3 +37,9 @@ Thumbs.db
 *.egg-info/
 build/
 dist/
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+*.tsbuildinfo

@@ -1,0 +1,120 @@
+import puppeteer from 'puppeteer';
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const SCREENSHOT_DIR = path.resolve(__dirname, '../../docs/ui/screenshots');
+
+if (!fs.existsSync(SCREENSHOT_DIR)) {
+  fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+}
+
+async function run() {
+  console.log('Starting Vite preview server...');
+  const server = spawn('npx', ['vite', 'preview', '--port', '4173'], {
+    cwd: path.resolve(__dirname, '..'),
+    shell: true,
+    stdio: 'pipe',
+  });
+
+  // Wait 3 seconds for server to boot
+  await new Promise((res) => setTimeout(res, 3500));
+
+  console.log('Launching Puppeteer browser...');
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  try {
+    const page = await browser.newPage();
+
+    // Matrix of viewports and states
+    const captures = [
+      {
+        name: '01_job_detail_1440x900_scenario_a.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?partition=0',
+        width: 1440,
+        height: 900,
+      },
+      {
+        name: '02_job_detail_1366x768_scenario_b_deadline_passed.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?partition=1',
+        width: 1366,
+        height: 768,
+      },
+      {
+        name: '03_job_detail_1280x800_running_with_failed_partition.png',
+        url: 'http://localhost:4173/board/jobs/33333333-3333-4333-8333-333333333333?partition=3',
+        width: 1280,
+        height: 800,
+      },
+      {
+        name: '04_job_detail_1024x768_failed_partial_results.png',
+        url: 'http://localhost:4173/board/jobs/22222222-2222-4222-8222-222222222222?partition=0',
+        width: 1024,
+        height: 768,
+      },
+      {
+        name: '05_job_detail_768x1024_tablet.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?partition=0',
+        width: 768,
+        height: 1024,
+      },
+      {
+        name: '06_activity_events_chronology.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?tab=activity',
+        width: 1440,
+        height: 900,
+      },
+      {
+        name: '07_results_verified_manifests.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?tab=results',
+        width: 1440,
+        height: 900,
+      },
+      {
+        name: '08_failure_lab_recorded_evidence.png',
+        url: 'http://localhost:4173/board/lab',
+        width: 1440,
+        height: 900,
+      },
+      {
+        name: '09_workers_fleet_observation.png',
+        url: 'http://localhost:4173/board/workers',
+        width: 1440,
+        height: 900,
+      },
+      {
+        name: '10_overview_open_job.png',
+        url: 'http://localhost:4173/board',
+        width: 1440,
+        height: 900,
+      }
+    ];
+
+    for (const cap of captures) {
+      console.log(`Capturing ${cap.name} (${cap.width}x${cap.height})...`);
+      await page.setViewport({ width: cap.width, height: cap.height });
+      await page.goto(cap.url, { waitUntil: 'networkidle0' });
+      await new Promise((res) => setTimeout(res, 500));
+      const filePath = path.join(SCREENSHOT_DIR, cap.name);
+      await page.screenshot({ path: filePath });
+      console.log(`Saved screenshot: ${filePath}`);
+    }
+
+    console.log('All screenshots captured successfully!');
+  } finally {
+    await browser.close();
+    server.kill();
+  }
+}
+
+run().catch((err) => {
+  console.error('Screenshot script failed:', err);
+  process.exit(1);
+});
