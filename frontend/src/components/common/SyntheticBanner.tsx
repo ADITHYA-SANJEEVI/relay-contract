@@ -4,7 +4,7 @@ import { ScenarioKey } from '../../api/fixtureAdapter';
 import { AlertTriangle, Lock, X, ShieldAlert, Sparkles } from 'lucide-react';
 
 export const SyntheticBanner: React.FC = () => {
-  const { isSynthetic, activeScenario, setScenario, setSyntheticMode, refreshHealth } = useRelay();
+  const { isSynthetic, connectionStatus, activeScenario, setScenario, setSyntheticMode, refreshHealth } = useRelay();
   const [showPrereqModal, setShowPrereqModal] = useState(false);
 
   const handleScenarioChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -18,17 +18,22 @@ export const SyntheticBanner: React.FC = () => {
   };
 
   if (!isSynthetic) {
+    const isDisconnected = connectionStatus.apiReachable === false;
     return (
       <div
         className="px-4 py-1.5 bg-[rgba(240,198,116,0.12)] border-b border-[var(--color-attention)] text-xs text-[var(--color-attention)] flex flex-wrap items-center justify-between gap-2"
         role="banner"
-        aria-label="Live unauthenticated cluster warning"
+        aria-label={isDisconnected ? "Disconnected cluster warning" : "Live unauthenticated cluster warning"}
       >
         <div className="flex items-center gap-2 font-mono">
           <ShieldAlert size={14} className="flex-shrink-0" aria-hidden="true" />
-          <span className="font-bold">LIVE CLUSTER MODE (UNAUTHENTICATED)</span>
+          <span className="font-bold">
+            {isDisconnected ? "DISCONNECTED (RETAINING LAST-KNOWN OBSERVATION)" : "LIVE CLUSTER MODE (UNAUTHENTICATED)"}
+          </span>
           <span className="hidden md:inline text-[var(--color-text-secondary)]">
-            — Baseline Relay requires BV10 browser auth adapter for operator reads. Authenticated job data unavailable.
+            {isDisconnected
+              ? `— ${connectionStatus.error || 'Connection refused'} · Retaining snapshot from ${connectionStatus.lastObservedAt}`
+              : "— Baseline Relay requires BV10 browser auth adapter for operator reads. Authenticated job data unavailable."}
           </span>
         </div>
 

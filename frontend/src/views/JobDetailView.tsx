@@ -6,7 +6,8 @@ import {
   PartitionItem,
   GenerationDetail,
   AuthorityState,
-  RelayEvent
+  RelayEvent,
+  CapabilityState
 } from '../types/domain';
 import { JobHeader } from '../components/job/JobHeader';
 import { JobSummaryStrip } from '../components/job/JobSummaryStrip';
@@ -22,7 +23,7 @@ type ActiveTab = 'execution' | 'activity' | 'results' | 'definition';
 export const JobDetailView: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isSynthetic, liveAdapter, fixtureAdapter } = useRelay();
+  const { isSynthetic, activeScenario, liveAdapter, fixtureAdapter } = useRelay();
 
   // Tab state
   const tabParam = (searchParams.get('tab') as ActiveTab) || 'execution';
@@ -41,6 +42,7 @@ export const JobDetailView: React.FC = () => {
   const [selectedPartition, setSelectedPartition] = useState<PartitionItem | null>(null);
   const [generations, setGenerations] = useState<GenerationDetail[]>([]);
   const [authority, setAuthority] = useState<AuthorityState | null>(null);
+  const [historyGap, setHistoryGap] = useState<CapabilityState | null>(null);
   const [isInspectorOpenMobile, setIsInspectorOpenMobile] = useState<boolean>(false);
   const lastFocusedRowRef = React.useRef<HTMLElement | null>(null);
 
@@ -114,8 +116,14 @@ export const JobDetailView: React.FC = () => {
           try {
             const genRes = await fixtureAdapter.getGenerationsForPartition(targetPart.id);
             setGenerations(genRes.items);
-          } catch {
+            setHistoryGap(null);
+          } catch (err: any) {
             setGenerations([]);
+            if (activeScenario === 'SCENARIO_H_CAPABILITY_GAP' || err.message?.includes('BV03_PARTITION_HISTORY')) {
+              setHistoryGap(fixtureAdapter.getCapabilityGap('BV03_PARTITION_HISTORY'));
+            } else {
+              setHistoryGap(null);
+            }
           }
         }
       } else {
@@ -139,6 +147,13 @@ export const JobDetailView: React.FC = () => {
           setAuthority(auth);
           // Backend visibility gap: Generation history route does not exist live
           setGenerations([]);
+          setHistoryGap({
+            code: 'BV03_PARTITION_HISTORY',
+            title: 'Complete Partition Attempt History (BV03)',
+            description: 'Full historical attempts, owning sessions, and unaccepted artifact metadata for this partition are not exposed by the current baseline read contract.',
+            requiredReadContract: 'GET /v1/operator/partitions/{id}/history',
+            isGap: true,
+          });
         }
       }
     } catch (err: any) {
@@ -150,7 +165,7 @@ export const JobDetailView: React.FC = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [jobId, isSynthetic, fixtureAdapter, liveAdapter, statusFilter, selectedOrdinalParam]);
+  }, [jobId, isSynthetic, activeScenario, fixtureAdapter, liveAdapter, statusFilter, selectedOrdinalParam]);
 
   useEffect(() => {
     loadJobData();
@@ -189,15 +204,28 @@ export const JobDetailView: React.FC = () => {
       try {
         const genRes = await fixtureAdapter.getGenerationsForPartition(part.id);
         setGenerations(genRes.items);
-      } catch {
+        setHistoryGap(null);
+      } catch (err: any) {
         setGenerations([]);
+        if (activeScenario === 'SCENARIO_H_CAPABILITY_GAP' || err.message?.includes('BV03_PARTITION_HISTORY')) {
+          setHistoryGap(fixtureAdapter.getCapabilityGap('BV03_PARTITION_HISTORY'));
+        } else {
+          setHistoryGap(null);
+        }
       }
     } else {
       const auth = liveAdapter.getAuthorityForPartition(part);
       setAuthority(auth);
       setGenerations([]);
+      setHistoryGap({
+        code: 'BV03_PARTITION_HISTORY',
+        title: 'Complete Partition Attempt History (BV03)',
+        description: 'Full historical attempts, owning sessions, and unaccepted artifact metadata for this partition are not exposed by the current baseline read contract.',
+        requiredReadContract: 'GET /v1/operator/partitions/{id}/history',
+        isGap: true,
+      });
     }
-  }, [isSynthetic, fixtureAdapter, liveAdapter, setSearchParams]);
+  }, [isSynthetic, activeScenario, fixtureAdapter, liveAdapter, setSearchParams]);
 
   if (error) {
     if (error.status === 404) {
@@ -320,6 +348,7 @@ export const JobDetailView: React.FC = () => {
                   events={events}
                   observedAt={observedAt}
                   isLoading={isLoading}
+                  historyGap={historyGap}
                 />
               ) : (
                 <div className="p-8 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] text-center text-xs text-[var(--color-text-muted)]">
@@ -345,6 +374,7 @@ export const JobDetailView: React.FC = () => {
                     observedAt={observedAt}
                     onClose={handleCloseInspectorMobile}
                     isLoading={isLoading}
+                    historyGap={historyGap}
                   />
                 </div>
               </div>

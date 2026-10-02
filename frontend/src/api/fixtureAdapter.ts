@@ -32,6 +32,7 @@ import {
   SCENARIO_D_JOB,
   SCENARIO_E_AUTHORITY,
   SCENARIO_F_AUTHORITY,
+  SCENARIO_F_PARTITIONS,
   SCENARIO_G_CONNECTION,
   SCENARIO_H_CAPABILITY,
   SCENARIO_WORKERS
@@ -97,7 +98,9 @@ export class FixtureDataAdapter {
     status?: string
   ): Promise<{ items: PartitionItem[]; next_cursor: number | null; asOf: string }> {
     let baseItems: PartitionItem[];
-    if (jobId === JOB_ID_FAILED_WITH_PARTIAL || (!jobId && this.activeScenario === 'SCENARIO_D_FAILED_WITH_PARTIAL')) {
+    if (this.activeScenario === 'SCENARIO_F_INTEGRITY_FAILURE') {
+      baseItems = SCENARIO_F_PARTITIONS;
+    } else if (jobId === JOB_ID_FAILED_WITH_PARTIAL || (!jobId && this.activeScenario === 'SCENARIO_D_FAILED_WITH_PARTIAL')) {
       baseItems = SCENARIO_D_PARTITIONS;
     } else if (jobId === JOB_ID_RUNNING_WITH_FAILURE || (!jobId && this.activeScenario === 'SCENARIO_C_RUNNING_WITH_FAILURE')) {
       baseItems = SCENARIO_C_PARTITIONS;
@@ -145,12 +148,18 @@ export class FixtureDataAdapter {
 
   async getAuthorityForPartition(partitionId: string, ordinal = 0): Promise<AuthorityState> {
     let baseAuth: AuthorityState;
-    if (this.activeScenario === 'SCENARIO_F_INTEGRITY_FAILURE' || partitionId === PARTITION_3_ID) {
+    if (this.activeScenario === 'SCENARIO_F_INTEGRITY_FAILURE') {
       baseAuth = SCENARIO_F_AUTHORITY;
     } else if (this.activeScenario === 'SCENARIO_E_NO_ACCEPTED_RESULT' || partitionId === PARTITION_2_ID) {
       baseAuth = SCENARIO_E_AUTHORITY;
     } else if (this.activeScenario === 'SCENARIO_B_DEADLINE_PASSED' || partitionId === PARTITION_1_ID) {
       baseAuth = SCENARIO_B_AUTHORITY;
+    } else if (partitionId === PARTITION_3_ID) {
+      baseAuth = {
+        status: 'NONE',
+        partition_id: partitionId,
+        partition_ordinal: ordinal,
+      };
     } else {
       baseAuth = SCENARIO_A_AUTHORITY;
     }

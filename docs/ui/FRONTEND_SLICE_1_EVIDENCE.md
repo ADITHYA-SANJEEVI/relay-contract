@@ -6,15 +6,21 @@
 **Starting SHA:** `70d8393b5aab0e99fa39d5b3843019e3f94285a8`
 **Original Slice 1 Commit SHA:** `acb09c2512f9f1f07151f79bf8823627e7ed4e70`
 **Closure Starting SHA:** `acb09c2512f9f1f07151f79bf8823627e7ed4e70`
-**Closure Commit SHA:** recorded by Git history; intentionally not self-referential in this document.
+**Post-Closure Patch Starting SHA:** `08f5c5431bc8e3a4f339508943fcfb06cbaf0857`
+**Commit SHA:** recorded by Git history; intentionally not self-referential in this document.
 **Specification Source of Truth:** `docs/RELAY_CONTROL_BOARD_PRODUCT_SPEC_V1.md`
 
 ---
 
 ## 1. Executive Summary
 
-Frontend Slice 1 of the Relay Control Board has been implemented adhering strictly to the product specification (`docs/RELAY_CONTROL_BOARD_PRODUCT_SPEC_V1.md`). The Control Board serves as an **execution investigation console** designed around the core question:
+Frontend Slice 1 of the Relay Control Board has been implemented and refined adhering strictly to the product specification (`docs/RELAY_CONTROL_BOARD_PRODUCT_SPEC_V1.md`). The Control Board serves as an **execution investigation console** designed around the core question:
 > *"Which attempt produced the accepted result, and what happened to the other attempts?"*
+
+This post-closure patch strengthens the evidence guarantees:
+1. **Authority Consistency (Fix 1):** The partition table and the right-hand `AuthorityPanel` / inspector never disagree on whether a selected partition has an accepted result. In Scenario F (integrity failure preserves acceptance), Partition 3 renders `Accepted (G1)` in the table and `Accepted result (Generation 1)` in the inspector, while correctly rendering the independent content read checksum failure warning without collapsing accepted authority into artifact verification.
+2. **Visible Capability Gap (Fix 2):** Scenario H visibly renders the missing backend capability gap (`BV03_PARTITION_HISTORY`) in the UI inspector via `CapabilityUnavailable`, clearly presenting the missing read contract (`GET /v1/operator/partitions/{id}/history`) rather than silently hiding it behind an empty state.
+3. **Explicit Disconnected State:** Scenario G's disconnected and last-known observation snapshot semantics are rendered explicitly in the banner and health indicators.
 
 All backend authority semantics, PostgreSQL invariants, generation fencing rules, publication gates, and artifact verification distinctions have been preserved without any backend modifications.
 
@@ -90,11 +96,11 @@ The persistent banner **`SYNTHETIC DEMO DATA`** is visibly rendered on every syn
 - **Scenario E (No Accepted Result):**
   Partition 2 has no accepted result. Renders neutral `AuthorityPanel` without green rail; does not promise eventual success.
 - **Scenario F (Integrity Read Failure preserving Authority):**
-  Partition 3 has an accepted result relation, but explicit later content read encountered storage checksum mismatch. Green authority rail remains intact with separate integrity warning banner.
+  Partition 3 has an accepted result relation (`bbbbbbbb-3333-4333-8333-999999999999`), but explicit later content read encountered storage checksum mismatch. Green authority rail remains intact with separate integrity warning banner. Partition table row and inspector agree consistently (`Accepted (G1)`).
 - **Scenario G (Disconnected / Last-Known State):**
-  Connection failure retains last successful observation timestamp (`01:58:30Z`), marks API unreachable, and preserves last known snapshot.
+  Connection failure retains last successful observation timestamp (`01:58:30Z`), marks API unreachable, and preserves last known snapshot. Header and banner explicitly display disconnected state and last-known snapshot retention.
 - **Scenario H (Backend Capability Unavailable):**
-  Explicitly renders `CapabilityUnavailable` state explaining the missing read contract (`GET /v1/operator/partitions/{id}`), refusing to display fake zero rows.
+  Explicitly renders `CapabilityUnavailable` state inside the inspector explaining the missing read contract (`GET /v1/operator/partitions/{id}/history`), visibly demonstrating the BV03 capability gap rather than silently hiding it behind an empty state.
 
 ---
 
@@ -119,8 +125,8 @@ The persistent banner **`SYNTHETIC DEMO DATA`** is visibly rendered on every syn
 ## 8. Automated Test Suite Results
 
 Command: `npm test` (`vitest run`)
-Test Files: `tests/authority-invariants.test.tsx`, `tests/interaction-ux.test.tsx`
-**Total Tests:** 24 passed (24 total) — 100% PASS
+Test Files: `tests/authority-invariants.test.tsx`, `tests/interaction-ux.test.tsx`, `tests/slice1-closure-regressions.test.tsx`
+**Total Tests:** 26 passed (26 total) — 100% PASS
 
 1. `VERIFIED artifact remains distinct from ACCEPTED authority`: PASS
 2. `G4 EXPIRED, VERIFIED, stale publication rejection while G5 is ACCEPTED`: PASS
@@ -140,6 +146,14 @@ Test Files: `tests/authority-invariants.test.tsx`, `tests/interaction-ux.test.ts
 16. `IDs copied exactly`: PASS
 17. `unsupported enum does not map to success`: PASS
 18. `generation stack preserves independent lifecycle/artifact/publication dimensions`: PASS
+19. `LiveDataAdapter.getAuthorityForPartition never infers latest attempt or generation as accepted`: PASS
+20. `DefinitionTab in live mode renders real definition_hash, BV09 gap, and no fabricated defaults`: PASS
+21. `Switching to live mode clears synthetic observations and does not retain synthetic revision`: PASS
+22. `Fixture scenarios C and D have matching partitions, counts, and job-bound events`: PASS
+23. `EventList displays bounded sequence range and pagination frontier indicators`: PASS
+24. `OverviewView renders Unavailable/Unknown instead of hardcoded 0002_readiness when unobserved`: PASS
+25. `Fix 1: Partition table and inspector consistently reflect accepted authority in Scenario F and Normal mode`: PASS
+26. `Fix 2: Scenario H visibly renders CapabilityUnavailable for missing BV03 partition history`: PASS
 
 ---
 
@@ -148,15 +162,15 @@ Test Files: `tests/authority-invariants.test.tsx`, `tests/interaction-ux.test.ts
 - **TypeScript Typecheck:** `npm run typecheck` (`tsc --noEmit`) -> **PASS** (Exit code 0, 0 errors)
 - **ESLint:** `npm run lint` (`eslint src`) -> **PASS** (Exit code 0, 0 warnings/errors)
 - **Production Build:** `npm run build` (`tsc -b && vite build`) -> **PASS** (Exit code 0)
-  - `dist/index.html`: 0.47 kB (gzip: 0.30 kB)
-  - `dist/assets/index-DV19rb3t.css`: 22.18 kB (gzip: 5.26 kB)
-  - `dist/assets/index-DUaWIhSK.js`: 317.72 kB (gzip: 88.76 kB)
+  - `dist/index.html`: 0.49 kB (gzip: 0.31 kB)
+  - `dist/assets/index-BcYzwCCM.css`: 23.20 kB (gzip: 5.41 kB)
+  - `dist/assets/index-BSHnA98O.js`: 337.49 kB (gzip: 92.60 kB)
 
 ---
 
 ## 10. Visual QA & Screenshot Matrix
 
-Automated Puppeteer script (`npm run screenshots`) captured 10 deterministic states into `docs/ui/screenshots/`:
+Automated Puppeteer script (`npm run screenshots`) captured 14 deterministic states into `docs/ui/screenshots/`:
 
 | Screenshot File | Viewport | Target / Scenario | Status |
 |---|---|---|---|
@@ -170,6 +184,10 @@ Automated Puppeteer script (`npm run screenshots`) captured 10 deterministic sta
 | `08_failure_lab_recorded_evidence.png` | 1440×900 | Failure Lab: recorded evidence, expected vs observed | Captured |
 | `09_workers_fleet_observation.png` | 1440×900 | Workers: independent lifecycle and liveness observations | Captured |
 | `10_overview_open_job.png` | 1440×900 | Overview: Open Job by ID and Needs Attention list | Captured |
+| `11_scenario_e_no_accepted_result.png` | 1440×900 | Scenario E: Partition 2 with no accepted result | Captured |
+| `12_scenario_f_integrity_failure.png` | 1440×900 | Scenario F: Partition 3 accepted authority with independent payload checksum mismatch alert, matching table row | Captured |
+| `13_scenario_g_disconnected_state.png` | 1440×900 | Scenario G: Disconnected / last-known observation banner and unreachable indicators | Captured |
+| `14_scenario_h_missing_capability_gap.png` | 1440×900 | Scenario H: Visible BV03 partition attempt history capability gap card in inspector | Captured |
 
 ---
 

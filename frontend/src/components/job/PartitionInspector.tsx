@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PartitionItem, GenerationDetail, AuthorityState, RelayEvent } from '../../types/domain';
+import { PartitionItem, GenerationDetail, AuthorityState, RelayEvent, CapabilityState } from '../../types/domain';
 import { AuthorityPanel } from '../common/AuthorityPanel';
 import { GenerationStack } from './GenerationStack';
 import { RecordedStatusBadge, ObservationBadge } from '../common/StatusBadges';
@@ -14,6 +14,7 @@ interface PartitionInspectorProps {
   observedAt: string;
   onClose?: () => void;
   isLoading?: boolean;
+  historyGap?: CapabilityState | null;
 }
 
 export const PartitionInspector: React.FC<PartitionInspectorProps> = ({
@@ -24,6 +25,7 @@ export const PartitionInspector: React.FC<PartitionInspectorProps> = ({
   observedAt,
   onClose,
   isLoading = false,
+  historyGap,
 }) => {
   const [selectedGeneration, setSelectedGeneration] = useState<string | null>(
     generations.length > 0 ? generations[0].generation : null
@@ -117,7 +119,7 @@ export const PartitionInspector: React.FC<PartitionInspectorProps> = ({
           <div className="flex items-center justify-between mb-2">
             <span className="text-label">Generation History</span>
             <span className="text-xs text-[var(--color-text-muted)] font-mono">
-              ({generations.length} recorded)
+              {historyGap ? '(Gap BV03)' : `(${generations.length} recorded)`}
             </span>
           </div>
           <GenerationStack
@@ -125,6 +127,8 @@ export const PartitionInspector: React.FC<PartitionInspectorProps> = ({
             selectedGeneration={selectedGeneration}
             onSelectGeneration={(gen) => setSelectedGeneration(gen.generation)}
             isLoading={isLoading}
+            isGap={Boolean(historyGap)}
+            gapCapability={historyGap}
           />
         </div>
 

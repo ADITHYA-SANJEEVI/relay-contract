@@ -267,7 +267,7 @@ export const SCENARIO_G_CONNECTION = {
  */
 export const SCENARIO_H_CAPABILITY: CapabilityState = {
   code: 'BV03_PARTITION_HISTORY',
-  title: 'Complete Partition Attempt History',
+  title: 'Complete Partition Attempt History (BV03)',
   description: 'Full historical attempts, owning sessions, and unaccepted artifact metadata for this partition are not exposed by the current backend read contract.',
   requiredReadContract: 'GET /v1/operator/partitions/{id}/history',
   isGap: true
@@ -355,6 +355,26 @@ export const SCENARIO_NORMAL_PARTITIONS: PartitionItem[] = [
     accepted_artifact_id: null,
     accepted_generation: null,
     latest_attempt_status: 'FAILED'
+  }
+];
+
+export const SCENARIO_F_PARTITIONS: PartitionItem[] = [
+  SCENARIO_NORMAL_PARTITIONS[0],
+  SCENARIO_NORMAL_PARTITIONS[1],
+  SCENARIO_NORMAL_PARTITIONS[2],
+  {
+    id: PARTITION_3_ID,
+    ordinal: 3,
+    status: 'SUCCEEDED',
+    generation: '1',
+    eligible_at: null,
+    last_error_code: null,
+    attempt_id: 'cccccccc-3333-4333-8333-999999999999',
+    lease_expires_at: '2026-10-03T01:45:00.000Z',
+    hard_deadline_at: '2026-10-03T01:50:00.000Z',
+    accepted_artifact_id: 'bbbbbbbb-3333-4333-8333-999999999999',
+    accepted_generation: '1',
+    latest_attempt_status: 'SUCCEEDED'
   }
 ];
 

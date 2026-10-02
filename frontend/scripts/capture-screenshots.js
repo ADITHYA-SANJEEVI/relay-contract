@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer';
-import { spawn } from 'child_process';
+import { preview } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -15,14 +15,10 @@ if (!fs.existsSync(SCREENSHOT_DIR)) {
 
 async function run() {
   console.log('Starting Vite preview server...');
-  const server = spawn('npx', ['vite', 'preview', '--port', '4173'], {
-    cwd: path.resolve(__dirname, '..'),
-    shell: true,
-    stdio: 'pipe',
+  const server = await preview({
+    root: path.resolve(__dirname, '..'),
+    preview: { port: 4173 }
   });
-
-  // Wait 3 seconds for server to boot
-  await new Promise((res) => setTimeout(res, 3500));
 
   console.log('Launching Puppeteer browser...');
   const browser = await puppeteer.launch({
@@ -157,8 +153,8 @@ async function run() {
 
     console.log('All screenshots captured successfully!');
   } finally {
-    await browser.close();
-    server.kill();
+    if (browser) await browser.close();
+    server.httpServer.close();
   }
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { GenerationDetail } from '../../types/domain';
+import { GenerationDetail, CapabilityState } from '../../types/domain';
 import { GenerationCard } from './GenerationCard';
 import { CapabilityUnavailable } from '../common/CapabilityUnavailable';
 
@@ -9,6 +9,7 @@ interface GenerationStackProps {
   onSelectGeneration: (gen: GenerationDetail) => void;
   isLoading?: boolean;
   isGap?: boolean;
+  gapCapability?: CapabilityState | null;
 }
 
 export const GenerationStack: React.FC<GenerationStackProps> = ({
@@ -17,13 +18,15 @@ export const GenerationStack: React.FC<GenerationStackProps> = ({
   onSelectGeneration,
   isLoading = false,
   isGap = false,
+  gapCapability,
 }) => {
-  if (isGap) {
+  if (isGap || gapCapability) {
     return (
       <CapabilityUnavailable
-        title="Generation History Unavailable"
-        description="Detailed attempt history and non-authoritative generations for this partition are not exposed by the current backend read route."
-        requiredReadContract="GET /v1/operator/partitions/{id}"
+        capability={gapCapability || undefined}
+        title={gapCapability?.title || "Complete Partition Attempt History (BV03)"}
+        description={gapCapability?.description || "Full historical attempts, owning sessions, and unaccepted artifact metadata for this partition are not exposed by the current backend read contract."}
+        requiredReadContract={gapCapability?.requiredReadContract || "GET /v1/operator/partitions/{id}/history"}
       />
     );
   }

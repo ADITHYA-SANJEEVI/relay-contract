@@ -15,6 +15,9 @@ import {
   SCENARIO_D_JOB
 } from '../src/fixtures/scenarios';
 import { JobSummary, PartitionItem, RelayEvent } from '../src/types/domain';
+import { PartitionTable } from '../src/components/job/PartitionTable';
+import { AuthorityPanel } from '../src/components/common/AuthorityPanel';
+import { PartitionInspector } from '../src/components/job/PartitionInspector';
 
 describe('Relay Frontend Slice 1 Closure Pass Regressions', () => {
   // Requirement 3: Live Authority Attribution
@@ -269,5 +272,128 @@ describe('Relay Frontend Slice 1 Closure Pass Regressions', () => {
     expect(screen.getByText('Unknown')).toBeInTheDocument();
     // Must NOT contain fallback '0002_readiness'
     expect(screen.queryByText('0002_readiness')).not.toBeInTheDocument();
+  });
+
+  // Fix 1: Authority Consistency between PartitionTable and AuthorityPanel / Inspector
+  it('7. Fix 1: Partition table and inspector consistently reflect accepted authority in Scenario F and Normal mode', async () => {
+    const adapter = new FixtureDataAdapter();
+
+    // 1. Scenario F: Integrity Failure Preserves Acceptance
+    adapter.setScenario('SCENARIO_F_INTEGRITY_FAILURE');
+    const fPartitions = await adapter.getPartitions('job-test-f');
+    const fPart3 = fPartitions.items.find(p => p.ordinal === 3)!;
+    expect(fPart3.accepted_artifact_id).toBeTruthy();
+    expect(fPart3.accepted_generation).toBe('1');
+
+    const fAuth3 = await adapter.getAuthorityForPartition(fPart3.id, 3);
+    expect(fAuth3.status).toBe('ACCEPTED');
+    expect(fAuth3.artifact_id).toBe(fPart3.accepted_artifact_id);
+    expect(fAuth3.generation).toBe(fPart3.accepted_generation);
+    expect(fAuth3.integrity_failure).toBeDefined();
+
+    // Render table and inspector for Scenario F Partition 3
+    const { unmount: unmountF } = render(
+      <div>
+        <PartitionTable
+          partitions={fPartitions.items}
+          selectedPartitionId={fPart3.id}
+          onSelectPartition={() => {}}
+          statusFilter="ALL"
+          onChangeStatusFilter={() => {}}
+          observedAt="2026-10-03T02:00:00Z"
+        />
+        <AuthorityPanel authority={fAuth3} />
+      </div>
+    );
+
+    // Both table row and inspector must show Accepted (G1)
+    expect(screen.getAllByText('Accepted').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Accepted result').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Pinned content could not be verified on this read')).toBeInTheDocument();
+    expect(screen.getByText(/The accepted authority relation remains valid/i)).toBeInTheDocument();
+    unmountF();
+
+    // 2. Normal mode: Partition 3 (failed worker crash) has NO accepted result in table or inspector
+    adapter.setScenario('NORMAL');
+    const normalPartitions = await adapter.getPartitions(JOB_ID_NORMAL);
+    const normalPart3 = normalPartitions.items.find(p => p.ordinal === 3)!;
+    expect(normalPart3.accepted_artifact_id).toBeNull();
+
+    const normalAuth3 = await adapter.getAuthorityForPartition(normalPart3.id, 3);
+    expect(normalAuth3.status).toBe('NONE');
+
+    const { unmount: unmountNormal } = render(
+      <div>
+        <PartitionTable
+          partitions={normalPartitions.items}
+          selectedPartitionId={normalPart3.id}
+          onSelectPartition={() => {}}
+          statusFilter="ALL"
+          onChangeStatusFilter={() => {}}
+          observedAt="2026-10-03T02:00:00Z"
+        />
+        <AuthorityPanel authority={normalAuth3} />
+      </div>
+    );
+
+    // Table says None accepted (for partitions 1, 2, 3), inspector says No accepted result
+    expect(screen.getAllByText('None accepted').length).toBe(3);
+    expect(screen.getByText('No accepted result')).toBeInTheDocument();
+    unmountNormal();
+  });
+
+  // Fix 2: Scenario H Visibly Demonstrates Backend Capability Gap
+  it('8. Fix 2: Scenario H visibly renders CapabilityUnavailable for missing BV03 partition history', async () => {
+    const adapter = new FixtureDataAdapter();
+    adapter.setScenario('SCENARIO_H_CAPABILITY_GAP');
+
+    await expect(adapter.getGenerationsForPartition('part-test-0')).rejects.toThrow(
+      'CAPABILITY_GAP: BV03_PARTITION_HISTORY'
+    );
+
+    const gap = adapter.getCapabilityGap('BV03_PARTITION_HISTORY');
+    expect(gap.code).toBe('BV03_PARTITION_HISTORY');
+    expect(gap.isGap).toBe(true);
+
+    const samplePartition: PartitionItem = {
+      id: 'p-0',
+      ordinal: 0,
+      status: 'SUCCEEDED',
+      generation: '5',
+      eligible_at: null,
+      last_error_code: null,
+      attempt_id: 'att-1',
+      lease_expires_at: null,
+      hard_deadline_at: null,
+      accepted_artifact_id: 'art-1',
+      accepted_generation: '5',
+      latest_attempt_status: 'SUCCEEDED'
+    };
+
+    render(
+      <PartitionInspector
+        partition={samplePartition}
+        authority={{
+          status: 'ACCEPTED',
+          partition_id: 'p-0',
+          partition_ordinal: 0,
+          generation: '5',
+          artifact_id: 'art-1',
+          attempt_id: 'att-1'
+        }}
+        generations={[]}
+        events={[]}
+        observedAt="2026-10-03T02:00:00Z"
+        historyGap={gap}
+      />
+    );
+
+    // Visibly demonstrates the gap in the UI
+    expect(screen.getByText('Complete Partition Attempt History (BV03)')).toBeInTheDocument();
+    expect(screen.getByText(/Full historical attempts, owning sessions, and unaccepted artifact metadata/)).toBeInTheDocument();
+    expect(screen.getByText('GET /v1/operator/partitions/{id}/history')).toBeInTheDocument();
+    expect(screen.getByText('(Gap BV03)')).toBeInTheDocument();
+    // Must NOT say "0 recorded" or generic empty state
+    expect(screen.queryByText('(0 recorded)')).not.toBeInTheDocument();
   });
 });
