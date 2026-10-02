@@ -33,10 +33,10 @@ export const RelayProvider: React.FC<{ children: React.ReactNode; defaultSynthet
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     isLive: !defaultSynthetic,
     isSynthetic: defaultSynthetic,
-    apiReachable: true,
-    readinessPassed: true,
+    apiReachable: defaultSynthetic ? true : null,
+    readinessPassed: defaultSynthetic ? true : null,
     dbRevision: defaultSynthetic ? '0002_readiness (synthetic)' : undefined,
-    lastObservedAt: new Date().toISOString(),
+    lastObservedAt: defaultSynthetic ? new Date().toISOString() : null,
   });
 
   const setScenario = useCallback((scenario: ScenarioKey) => {
@@ -53,8 +53,17 @@ export const RelayProvider: React.FC<{ children: React.ReactNode; defaultSynthet
         errorCode: 'network_error',
         statusCode: 0
       });
+    } else if (isSynthetic) {
+      setConnectionStatus({
+        isLive: false,
+        isSynthetic: true,
+        apiReachable: true,
+        readinessPassed: true,
+        dbRevision: '0002_readiness (synthetic)',
+        lastObservedAt: new Date().toISOString(),
+      });
     }
-  }, [fixtureAdapter]);
+  }, [fixtureAdapter, isSynthetic]);
 
   const setSyntheticMode = useCallback((enabled: boolean) => {
     // Explicit selection only. Live errors NEVER flip this boolean automatically.
@@ -67,6 +76,17 @@ export const RelayProvider: React.FC<{ children: React.ReactNode; defaultSynthet
         readinessPassed: true,
         dbRevision: '0002_readiness (synthetic)',
         lastObservedAt: new Date().toISOString(),
+      });
+    } else {
+      // In live mode, synthetic observations MUST NOT be retained!
+      // Unknown connection/readiness/revision must remain unknown.
+      setConnectionStatus({
+        isLive: true,
+        isSynthetic: false,
+        apiReachable: null,
+        readinessPassed: null,
+        dbRevision: undefined,
+        lastObservedAt: null,
       });
     }
   }, []);

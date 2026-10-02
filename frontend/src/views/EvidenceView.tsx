@@ -18,7 +18,7 @@ export const EvidenceView: React.FC = () => {
       id: 'EV-M2-01',
       title: 'M2 Concurrent Ownership & Supervised Lease Renewal Validation',
       kind: 'Validation Manifest',
-      sha: 'd2cf86a12b34c5678ef0123456789abcdef01234',
+      sha: 'd2cf86ab44c3e1a034279c8873e3ff0517aa9831',
       recordedAt: '2026-10-02T04:00:00Z',
       verdict: 'PASS',
       itemsCount: 184,

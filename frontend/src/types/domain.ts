@@ -166,7 +166,7 @@ export interface WorkerSession {
 export interface ConnectionStatus {
   isLive: boolean;
   isSynthetic: boolean;
-  apiReachable: boolean;
+  apiReachable: boolean | null;
   readinessPassed: boolean | null; // null if unchecked
   dbRevision?: string;
   lastObservedAt: string | null;

@@ -76,6 +76,13 @@ async function run() {
         url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?tab=results',
         width: 1440,
         height: 900,
+        action: async (page) => {
+          const loadBtn = await page.$('button.btn-primary');
+          if (loadBtn) {
+            await loadBtn.click();
+            await new Promise((res) => setTimeout(res, 800));
+          }
+        }
       },
       {
         name: '08_failure_lab_recorded_evidence.png',
@@ -94,6 +101,34 @@ async function run() {
         url: 'http://localhost:4173/board',
         width: 1440,
         height: 900,
+      },
+      {
+        name: '11_scenario_e_no_accepted_result.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?partition=2',
+        width: 1440,
+        height: 900,
+        scenario: 'SCENARIO_E_NO_ACCEPTED_RESULT',
+      },
+      {
+        name: '12_scenario_f_integrity_failure.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?partition=3',
+        width: 1440,
+        height: 900,
+        scenario: 'SCENARIO_F_INTEGRITY_FAILURE',
+      },
+      {
+        name: '13_scenario_g_disconnected_state.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111',
+        width: 1440,
+        height: 900,
+        scenario: 'SCENARIO_G_DISCONNECTED',
+      },
+      {
+        name: '14_scenario_h_missing_capability_gap.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?partition=0',
+        width: 1440,
+        height: 900,
+        scenario: 'SCENARIO_H_CAPABILITY_GAP',
       }
     ];
 
@@ -102,6 +137,19 @@ async function run() {
       await page.setViewport({ width: cap.width, height: cap.height });
       await page.goto(cap.url, { waitUntil: 'networkidle0' });
       await new Promise((res) => setTimeout(res, 500));
+
+      if (cap.scenario) {
+        const select = await page.$('#scenario-select');
+        if (select) {
+          await page.select('#scenario-select', cap.scenario);
+          await new Promise((res) => setTimeout(res, 600));
+        }
+      }
+
+      if (cap.action) {
+        await cap.action(page);
+      }
+
       const filePath = path.join(SCREENSHOT_DIR, cap.name);
       await page.screenshot({ path: filePath });
       console.log(`Saved screenshot: ${filePath}`);

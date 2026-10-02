@@ -104,6 +104,7 @@ export const PartitionTable: React.FC<PartitionTableProps> = ({
                 return (
                   <tr
                     key={partition.id}
+                    data-partition-ordinal={partition.ordinal}
                     onClick={() => onSelectPartition(partition)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {

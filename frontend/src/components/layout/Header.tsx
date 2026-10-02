@@ -38,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="md:hidden btn-icon text-[var(--color-text-secondary)]"
+            className="xl:hidden btn-icon text-[var(--color-text-secondary)]"
             aria-label="Toggle navigation menu"
           >
             <Menu size={18} aria-hidden="true" />
@@ -72,15 +72,19 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
         {/* API Reachability */}
         <div className="flex items-center gap-1.5">
           <span className="text-[var(--color-text-muted)] hidden sm:inline">API:</span>
-          {connectionStatus.apiReachable ? (
+          {connectionStatus.apiReachable === true ? (
             <span className="inline-flex items-center gap-1 text-[var(--color-accepted)] font-mono text-[11px]" title="API HTTP process reachable">
               <CheckCircle2 size={13} aria-hidden="true" />
               <span>Reachable</span>
             </span>
-          ) : (
+          ) : connectionStatus.apiReachable === false ? (
             <span className="inline-flex items-center gap-1 text-[var(--color-failure)] font-mono text-[11px]" title="API unreachable">
               <XCircle size={13} aria-hidden="true" />
               <span>Unreachable</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[var(--color-text-muted)] font-mono text-[11px]" title="API reachability unobserved">
+              <span>Unknown</span>
             </span>
           )}
         </div>

@@ -100,7 +100,7 @@ export const AuthorityPanel: React.FC<AuthorityPanelProps> = ({ authority, isLoa
             {authority.attempt_id ? (
               <CopyField value={authority.attempt_id} label="Attempt ID" shorten truncateLength={8} />
             ) : (
-              <span className="text-[var(--color-text-muted)]">Resolved from accepted relation</span>
+              <span className="text-[var(--color-text-muted)]">Unavailable</span>
             )}
           </dd>
         </div>

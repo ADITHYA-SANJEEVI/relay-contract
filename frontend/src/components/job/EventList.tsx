@@ -17,6 +17,9 @@ interface EventListProps {
   selectedPartitionOrdinal?: number | null;
   onSelectPartitionOrdinal?: (ordinal: number) => void;
   isLoading?: boolean;
+  nextCursor?: string | null;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 }
 
 interface EventItemOrGroup {
@@ -30,6 +33,9 @@ export const EventList: React.FC<EventListProps> = ({
   selectedPartitionOrdinal,
   onSelectPartitionOrdinal,
   isLoading = false,
+  nextCursor = null,
+  onLoadMore,
+  isLoadingMore = false,
 }) => {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
@@ -210,16 +216,29 @@ export const EventList: React.FC<EventListProps> = ({
     );
   }
 
+  const firstLoadedSeq = events.length > 0 ? events[0].seq : '0';
+  const lastLoadedSeq = events.length > 0 ? events[events.length - 1].seq : '0';
+
   return (
     <div className="space-y-3" role="feed" aria-label="Job event chronology">
-      <div className="p-2.5 rounded bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] flex items-center justify-between text-xs text-[var(--color-text-secondary)] font-mono">
-        <div className="flex items-center gap-1.5">
+      <div className="p-2.5 rounded bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-text-secondary)] font-mono">
+        <div className="flex items-center gap-2">
           <History size={14} className="text-[var(--color-execution)]" aria-hidden="true" />
-          <span>Bounded Chronology: {events.length} events loaded</span>
+          <span>
+            Loaded Sequence Range: <strong className="text-[var(--color-text-primary)]">#{firstLoadedSeq} – #{lastLoadedSeq}</strong> ({events.length} events)
+          </span>
         </div>
-        <span className="text-[11px] text-[var(--color-text-muted)]">
-          Ordered by authoritative sequence number (seq)
-        </span>
+        <div className="flex items-center gap-2">
+          {nextCursor === null ? (
+            <span className="px-2 py-0.5 rounded bg-[rgba(121,217,170,0.15)] text-[var(--color-accepted)] border border-[rgba(121,217,170,0.3)] text-[11px] font-semibold">
+              At Stream Frontier
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded bg-[rgba(240,198,116,0.15)] text-[var(--color-attention)] border border-[rgba(240,198,116,0.3)] text-[11px] font-semibold">
+              Stream Truncated (More Events Ahead)
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -267,6 +286,25 @@ export const EventList: React.FC<EventListProps> = ({
           );
         })}
       </div>
+
+      {/* Pagination / Frontier Controls */}
+      {nextCursor && onLoadMore && (
+        <div className="p-3 text-center bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-lg">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className="btn-primary text-xs font-mono"
+          >
+            {isLoadingMore ? 'Loading next batch…' : `Load Next Batch (after seq #${nextCursor}) →`}
+          </button>
+        </div>
+      )}
+      {!nextCursor && events.length > 0 && (
+        <div className="p-2 text-center text-xs text-[var(--color-text-muted)] font-mono">
+          All recorded stream events loaded up to sequence #{lastLoadedSeq}.
+        </div>
+      )}
     </div>
   );
 };

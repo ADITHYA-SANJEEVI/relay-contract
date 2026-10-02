@@ -1,15 +1,16 @@
-import { 
-  JobSummary, 
-  PartitionItem, 
-  GenerationDetail, 
-  AuthorityState, 
-  RelayEvent, 
+import {
+  JobSummary,
+  PartitionItem,
+  GenerationDetail,
+  AuthorityState,
+  RelayEvent,
   WorkerSession,
   ConnectionStatus,
   CapabilityState
 } from '../types/domain';
 import {
   FIXTURE_OBSERVATION_TIME,
+  JOB_ID_NORMAL,
   JOB_ID_FAILED_WITH_PARTIAL,
   JOB_ID_RUNNING_WITH_FAILURE,
   PARTITION_0_ID,
@@ -19,6 +20,10 @@ import {
   SCENARIO_NORMAL_JOB,
   SCENARIO_NORMAL_PARTITIONS,
   SCENARIO_NORMAL_EVENTS,
+  SCENARIO_C_PARTITIONS,
+  SCENARIO_C_EVENTS,
+  SCENARIO_D_PARTITIONS,
+  SCENARIO_D_EVENTS,
   SCENARIO_A_GENERATIONS,
   SCENARIO_A_AUTHORITY,
   SCENARIO_B_GENERATIONS,
@@ -32,15 +37,15 @@ import {
   SCENARIO_WORKERS
 } from '../fixtures/scenarios';
 
-export type ScenarioKey = 
-  | 'NORMAL' 
-  | 'SCENARIO_A_STALE_REJECTION' 
-  | 'SCENARIO_B_DEADLINE_PASSED' 
-  | 'SCENARIO_C_RUNNING_WITH_FAILURE' 
-  | 'SCENARIO_D_FAILED_WITH_PARTIAL' 
-  | 'SCENARIO_E_NO_ACCEPTED_RESULT' 
-  | 'SCENARIO_F_INTEGRITY_FAILURE' 
-  | 'SCENARIO_G_DISCONNECTED' 
+export type ScenarioKey =
+  | 'NORMAL'
+  | 'SCENARIO_A_STALE_REJECTION'
+  | 'SCENARIO_B_DEADLINE_PASSED'
+  | 'SCENARIO_C_RUNNING_WITH_FAILURE'
+  | 'SCENARIO_D_FAILED_WITH_PARTIAL'
+  | 'SCENARIO_E_NO_ACCEPTED_RESULT'
+  | 'SCENARIO_F_INTEGRITY_FAILURE'
+  | 'SCENARIO_G_DISCONNECTED'
   | 'SCENARIO_H_CAPABILITY_GAP';
 
 export class FixtureDataAdapter {
@@ -70,29 +75,50 @@ export class FixtureDataAdapter {
 
   async getJob(id?: string): Promise<{ data: JobSummary; asOf: string }> {
     let job: JobSummary;
-    if (this.activeScenario === 'SCENARIO_D_FAILED_WITH_PARTIAL' || id === JOB_ID_FAILED_WITH_PARTIAL) {
+    if (id === JOB_ID_FAILED_WITH_PARTIAL || (!id && this.activeScenario === 'SCENARIO_D_FAILED_WITH_PARTIAL')) {
       job = SCENARIO_D_JOB;
-    } else if (this.activeScenario === 'SCENARIO_C_RUNNING_WITH_FAILURE' || id === JOB_ID_RUNNING_WITH_FAILURE) {
+    } else if (id === JOB_ID_RUNNING_WITH_FAILURE || (!id && this.activeScenario === 'SCENARIO_C_RUNNING_WITH_FAILURE')) {
       job = SCENARIO_C_JOB;
-    } else {
+    } else if (!id || id === JOB_ID_NORMAL) {
       job = SCENARIO_NORMAL_JOB;
+    } else {
+      const err = new Error(`Job "${id}" not found in synthetic repository.`);
+      (err as any).status = 404;
+      (err as any).code = 'not_found';
+      throw err;
     }
     return { data: job, asOf: FIXTURE_OBSERVATION_TIME };
   }
 
   async getPartitions(
-    _jobId: string, 
-    _afterOrdinal = -1, 
-    _limit = 100, 
+    jobId: string,
+    afterOrdinal = -1,
+    limit = 100,
     status?: string
   ): Promise<{ items: PartitionItem[]; next_cursor: number | null; asOf: string }> {
-    let items = [...SCENARIO_NORMAL_PARTITIONS];
+    let baseItems: PartitionItem[];
+    if (jobId === JOB_ID_FAILED_WITH_PARTIAL || (!jobId && this.activeScenario === 'SCENARIO_D_FAILED_WITH_PARTIAL')) {
+      baseItems = SCENARIO_D_PARTITIONS;
+    } else if (jobId === JOB_ID_RUNNING_WITH_FAILURE || (!jobId && this.activeScenario === 'SCENARIO_C_RUNNING_WITH_FAILURE')) {
+      baseItems = SCENARIO_C_PARTITIONS;
+    } else if (!jobId || jobId === JOB_ID_NORMAL) {
+      baseItems = SCENARIO_NORMAL_PARTITIONS;
+    } else {
+      const err = new Error(`Job "${jobId}" not found in synthetic repository.`);
+      (err as any).status = 404;
+      throw err;
+    }
+
+    let items = baseItems.filter(p => p.ordinal > afterOrdinal);
     if (status) {
       items = items.filter(p => p.status === status);
     }
+    const pageItems = items.slice(0, limit);
+    const nextCursor = items.length > limit ? pageItems[pageItems.length - 1].ordinal : null;
+
     return {
-      items,
-      next_cursor: null,
+      items: pageItems,
+      next_cursor: nextCursor,
       asOf: FIXTURE_OBSERVATION_TIME,
     };
   }
@@ -101,39 +127,63 @@ export class FixtureDataAdapter {
     if (this.activeScenario === 'SCENARIO_H_CAPABILITY_GAP') {
       throw new Error('CAPABILITY_GAP: BV03_PARTITION_HISTORY');
     }
+    let rawItems: GenerationDetail[] = [];
     if (partitionId === PARTITION_0_ID || this.activeScenario === 'SCENARIO_A_STALE_REJECTION') {
-      return { items: SCENARIO_A_GENERATIONS, asOf: FIXTURE_OBSERVATION_TIME };
+      rawItems = SCENARIO_A_GENERATIONS;
+    } else if (partitionId === PARTITION_1_ID || this.activeScenario === 'SCENARIO_B_DEADLINE_PASSED') {
+      rawItems = SCENARIO_B_GENERATIONS;
     }
-    if (partitionId === PARTITION_1_ID || this.activeScenario === 'SCENARIO_B_DEADLINE_PASSED') {
-      return { items: SCENARIO_B_GENERATIONS, asOf: FIXTURE_OBSERVATION_TIME };
-    }
-    return { items: [], asOf: FIXTURE_OBSERVATION_TIME };
+
+    // Bind partition identity to selected partition
+    const items = rawItems.map(g => ({
+      ...g,
+      partition_id: partitionId,
+    }));
+
+    return { items, asOf: FIXTURE_OBSERVATION_TIME };
   }
 
   async getAuthorityForPartition(partitionId: string, ordinal = 0): Promise<AuthorityState> {
+    let baseAuth: AuthorityState;
     if (this.activeScenario === 'SCENARIO_F_INTEGRITY_FAILURE' || partitionId === PARTITION_3_ID) {
-      return SCENARIO_F_AUTHORITY;
+      baseAuth = SCENARIO_F_AUTHORITY;
+    } else if (this.activeScenario === 'SCENARIO_E_NO_ACCEPTED_RESULT' || partitionId === PARTITION_2_ID) {
+      baseAuth = SCENARIO_E_AUTHORITY;
+    } else if (this.activeScenario === 'SCENARIO_B_DEADLINE_PASSED' || partitionId === PARTITION_1_ID) {
+      baseAuth = SCENARIO_B_AUTHORITY;
+    } else {
+      baseAuth = SCENARIO_A_AUTHORITY;
     }
-    if (this.activeScenario === 'SCENARIO_E_NO_ACCEPTED_RESULT' || partitionId === PARTITION_2_ID) {
-      return SCENARIO_E_AUTHORITY;
-    }
-    if (this.activeScenario === 'SCENARIO_B_DEADLINE_PASSED' || partitionId === PARTITION_1_ID) {
-      return SCENARIO_B_AUTHORITY;
-    }
-    if (partitionId === PARTITION_0_ID || this.activeScenario === 'SCENARIO_A_STALE_REJECTION' || this.activeScenario === 'NORMAL') {
-      return SCENARIO_A_AUTHORITY;
-    }
+
     return {
-      status: 'NONE',
+      ...baseAuth,
       partition_id: partitionId,
       partition_ordinal: ordinal,
     };
   }
 
-  async getEvents(_jobId: string, _afterSeq = '0', _limit = 100): Promise<{ items: RelayEvent[]; next_cursor: string | null; asOf: string }> {
+  async getEvents(jobId: string, afterSeq = '0', limit = 100): Promise<{ items: RelayEvent[]; next_cursor: string | null; asOf: string }> {
+    let baseEvents: RelayEvent[];
+    if (jobId === JOB_ID_FAILED_WITH_PARTIAL || (!jobId && this.activeScenario === 'SCENARIO_D_FAILED_WITH_PARTIAL')) {
+      baseEvents = SCENARIO_D_EVENTS;
+    } else if (jobId === JOB_ID_RUNNING_WITH_FAILURE || (!jobId && this.activeScenario === 'SCENARIO_C_RUNNING_WITH_FAILURE')) {
+      baseEvents = SCENARIO_C_EVENTS;
+    } else if (!jobId || jobId === JOB_ID_NORMAL) {
+      baseEvents = SCENARIO_NORMAL_EVENTS;
+    } else {
+      const err = new Error(`Job "${jobId}" not found in synthetic repository.`);
+      (err as any).status = 404;
+      throw err;
+    }
+
+    const afterSeqBig = BigInt(afterSeq || '0');
+    const filtered = baseEvents.filter(e => BigInt(e.seq) > afterSeqBig);
+    const items = filtered.slice(0, limit);
+    const nextCursor = filtered.length > limit ? items[items.length - 1].seq : null;
+
     return {
-      items: SCENARIO_NORMAL_EVENTS,
-      next_cursor: null,
+      items,
+      next_cursor: nextCursor,
       asOf: FIXTURE_OBSERVATION_TIME,
     };
   }

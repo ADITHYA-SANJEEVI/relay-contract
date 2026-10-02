@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useRelay } from '../context/RelayContext';
-import { 
-  JobSummary, 
-  PartitionItem, 
-  GenerationDetail, 
-  AuthorityState, 
-  RelayEvent 
+import {
+  JobSummary,
+  PartitionItem,
+  GenerationDetail,
+  AuthorityState,
+  RelayEvent
 } from '../types/domain';
 import { JobHeader } from '../components/job/JobHeader';
 import { JobSummaryStrip } from '../components/job/JobSummaryStrip';
@@ -32,6 +32,8 @@ export const JobDetailView: React.FC = () => {
   const [job, setJob] = useState<JobSummary | null>(null);
   const [partitions, setPartitions] = useState<PartitionItem[]>([]);
   const [events, setEvents] = useState<RelayEvent[]>([]);
+  const [nextEventCursor, setNextEventCursor] = useState<string | null>(null);
+  const [isLoadingMoreEvents, setIsLoadingMoreEvents] = useState<boolean>(false);
   const [observedAt, setObservedAt] = useState<string>(new Date().toISOString());
 
   // Selected partition & inspector data
@@ -39,6 +41,8 @@ export const JobDetailView: React.FC = () => {
   const [selectedPartition, setSelectedPartition] = useState<PartitionItem | null>(null);
   const [generations, setGenerations] = useState<GenerationDetail[]>([]);
   const [authority, setAuthority] = useState<AuthorityState | null>(null);
+  const [isInspectorOpenMobile, setIsInspectorOpenMobile] = useState<boolean>(false);
+  const lastFocusedRowRef = React.useRef<HTMLElement | null>(null);
 
   // Filters & loading
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -56,6 +60,32 @@ export const JobDetailView: React.FC = () => {
     });
   };
 
+  // Close inspector drawer on mobile and restore focus
+  const handleCloseInspectorMobile = useCallback(() => {
+    setIsInspectorOpenMobile(false);
+    if (selectedPartition) {
+      const row = document.querySelector<HTMLElement>(`tr[data-partition-ordinal="${selectedPartition.ordinal}"]`);
+      if (row) {
+        row.focus();
+        return;
+      }
+    }
+    if (lastFocusedRowRef.current) {
+      lastFocusedRowRef.current.focus();
+    }
+  }, [selectedPartition]);
+
+  // Keyboard Escape listener to close drawer on smaller viewports
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isInspectorOpenMobile) {
+        handleCloseInspectorMobile();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isInspectorOpenMobile, handleCloseInspectorMobile]);
+
   // Fetch job & partitions snapshot
   const loadJobData = useCallback(async (isBackground = false) => {
     if (!isBackground) setIsLoading(true);
@@ -71,6 +101,7 @@ export const JobDetailView: React.FC = () => {
         setJob(jobRes.data);
         setPartitions(partRes.items);
         setEvents(evRes.items);
+        setNextEventCursor(evRes.next_cursor);
         setObservedAt(jobRes.asOf);
 
         // Retain or set selected partition
@@ -96,6 +127,7 @@ export const JobDetailView: React.FC = () => {
         setJob(jobRes.data);
         setPartitions(partRes.items);
         setEvents(evRes.items);
+        setNextEventCursor(evRes.next_cursor);
         setObservedAt(jobRes.asOf);
 
         // Select partition
@@ -124,9 +156,27 @@ export const JobDetailView: React.FC = () => {
     loadJobData();
   }, [loadJobData]);
 
+  // Load more events forward pagination
+  const handleLoadMoreEvents = async () => {
+    if (!nextEventCursor || !jobId) return;
+    setIsLoadingMoreEvents(true);
+    try {
+      const evRes = isSynthetic
+        ? await fixtureAdapter.getEvents(jobId, nextEventCursor, 100)
+        : await liveAdapter.getEvents(jobId, nextEventCursor, 100);
+      setEvents(prev => [...prev, ...evRes.items]);
+      setNextEventCursor(evRes.next_cursor);
+    } catch (err) {
+      console.error('Failed to load next event batch', err);
+    } finally {
+      setIsLoadingMoreEvents(false);
+    }
+  };
+
   // Select a partition
   const handleSelectPartition = useCallback(async (part: PartitionItem) => {
     setSelectedPartition(part);
+    setIsInspectorOpenMobile(true);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set('partition', part.ordinal.toString());
@@ -160,9 +210,20 @@ export const JobDetailView: React.FC = () => {
         />
       );
     }
+    if (error.status === 401 || error.status === 403) {
+      return (
+        <CapabilityUnavailable
+          type="401"
+          title="Operator Authentication Required (BV10)"
+          description="Authenticated live job detail requires the BV10 browser session and authentication adapter. Baseline Relay does not yet expose browser session authentication for operator reads."
+          requiredReadContract="GET /v1/jobs/{id}"
+          onRetry={() => loadJobData()}
+        />
+      );
+    }
     return (
       <CapabilityUnavailable
-        type={error.status === 401 ? '401' : error.status === 403 ? '403' : '503'}
+        type="503"
         title={`Error Loading Job (${error.status})`}
         description={error.message}
         onRetry={() => loadJobData()}
@@ -214,8 +275,8 @@ export const JobDetailView: React.FC = () => {
               onClick={() => handleTabChange(tab)}
               className={`
                 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors
-                ${isActive 
-                  ? 'border-[var(--color-execution)] text-[var(--color-execution)] font-semibold' 
+                ${isActive
+                  ? 'border-[var(--color-execution)] text-[var(--color-execution)] font-semibold'
                   : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-control)]'
                 }
               `}
@@ -230,9 +291,9 @@ export const JobDetailView: React.FC = () => {
       <div className="min-h-[500px]">
         {/* EXECUTION TAB (Default showcase) */}
         {activeTab === 'execution' && (
-          <div 
-            id="panel-execution" 
-            role="tabpanel" 
+          <div
+            id="panel-execution"
+            role="tabpanel"
             aria-labelledby="tab-execution"
             className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start"
           >
@@ -249,8 +310,8 @@ export const JobDetailView: React.FC = () => {
               />
             </div>
 
-            {/* Right: Partition Inspector (~40% desktop width, min 360px) */}
-            <div className="xl:col-span-5 min-w-[360px] h-[620px]">
+            {/* Right: Partition Inspector (~40% desktop width, min 360px) - Persistent side-by-side on desktop >= 1280px */}
+            <div className="hidden xl:block xl:col-span-5 min-w-[360px] h-[620px]">
               {selectedPartition ? (
                 <PartitionInspector
                   partition={selectedPartition}
@@ -266,6 +327,28 @@ export const JobDetailView: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Mobile/Tablet Partition Inspector Drawer (< 1280px) */}
+            {isInspectorOpenMobile && selectedPartition && (
+              <div
+                className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-3 xl:hidden"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`Partition ${selectedPartition.ordinal} Inspector`}
+              >
+                <div className="w-full max-w-2xl h-[90vh] bg-[var(--color-surface-1)] rounded-lg shadow-2xl overflow-hidden flex flex-col border border-[var(--color-border-control)]">
+                  <PartitionInspector
+                    partition={selectedPartition}
+                    authority={authority}
+                    generations={generations}
+                    events={events}
+                    observedAt={observedAt}
+                    onClose={handleCloseInspectorMobile}
+                    isLoading={isLoading}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -274,6 +357,9 @@ export const JobDetailView: React.FC = () => {
           <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity">
             <EventList
               events={events}
+              nextCursor={nextEventCursor}
+              onLoadMore={handleLoadMoreEvents}
+              isLoadingMore={isLoadingMoreEvents}
               selectedPartitionOrdinal={selectedPartition?.ordinal}
               onSelectPartitionOrdinal={(ord) => {
                 const p = partitions.find(item => item.ordinal === ord);

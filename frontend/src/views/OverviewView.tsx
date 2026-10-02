@@ -166,14 +166,24 @@ export const OverviewView: React.FC = () => {
           <dl className="mt-3 space-y-1.5 text-xs font-mono">
             <div className="flex items-center justify-between">
               <dt className="text-[var(--color-text-muted)]">API Process:</dt>
-              <dd className={connectionStatus.apiReachable ? 'text-[var(--color-accepted)]' : 'text-[var(--color-failure)]'}>
-                {connectionStatus.apiReachable ? 'Reachable' : 'Unreachable'}
+              <dd className={
+                connectionStatus.apiReachable === true
+                  ? 'text-[var(--color-accepted)]'
+                  : connectionStatus.apiReachable === false
+                    ? 'text-[var(--color-failure)]'
+                    : 'text-[var(--color-text-muted)]'
+              }>
+                {connectionStatus.apiReachable === true
+                  ? 'Reachable'
+                  : connectionStatus.apiReachable === false
+                    ? 'Unreachable'
+                    : 'Unknown'}
               </dd>
             </div>
             <div className="flex items-center justify-between">
               <dt className="text-[var(--color-text-muted)]">Database Revision:</dt>
               <dd className="text-[var(--color-text-primary)]">
-                {connectionStatus.dbRevision || '0002_readiness'}
+                {connectionStatus.dbRevision || 'Unavailable'}
               </dd>
             </div>
             <div className="flex items-center justify-between">

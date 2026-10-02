@@ -1,10 +1,12 @@
 # RELAY CONTROL BOARD — FRONTEND IMPLEMENTATION SLICE 1 EVIDENCE
 
-**Document Date:** 3 October 2026  
-**Repository:** `relay-contract`  
-**Branch:** `frontend/control-board-v1`  
-**Starting SHA:** `70d8393b5aab0e99fa39d5b3843019e3f94285a8`  
-**Final Commit SHA:** `893da312ba632d570e1a1cbd9ad63b5b1e223ecb` (initial)  
+**Document Date:** 3 October 2026
+**Repository:** `relay-contract`
+**Branch:** `frontend/control-board-v1`
+**Starting SHA:** `70d8393b5aab0e99fa39d5b3843019e3f94285a8`
+**Original Slice 1 Commit SHA:** `acb09c2512f9f1f07151f79bf8823627e7ed4e70`
+**Closure Starting SHA:** `acb09c2512f9f1f07151f79bf8823627e7ed4e70`
+**Closure Commit SHA:** recorded by Git history; intentionally not self-referential in this document.
 **Specification Source of Truth:** `docs/RELAY_CONTROL_BOARD_PRODUCT_SPEC_V1.md`
 
 ---
@@ -116,9 +118,9 @@ The persistent banner **`SYNTHETIC DEMO DATA`** is visibly rendered on every syn
 
 ## 8. Automated Test Suite Results
 
-Command: `npm test` (`vitest run`)  
-Test Files: `tests/authority-invariants.test.tsx`, `tests/interaction-ux.test.tsx`  
-**Total Tests:** 18 passed (18 total) — 100% PASS
+Command: `npm test` (`vitest run`)
+Test Files: `tests/authority-invariants.test.tsx`, `tests/interaction-ux.test.tsx`
+**Total Tests:** 24 passed (24 total) — 100% PASS
 
 1. `VERIFIED artifact remains distinct from ACCEPTED authority`: PASS
 2. `G4 EXPIRED, VERIFIED, stale publication rejection while G5 is ACCEPTED`: PASS
@@ -178,7 +180,8 @@ Automated Puppeteer script (`npm run screenshots`) captured 10 deterministic sta
 - **Non-Color Signals:** Every semantic status includes distinct text, explicit icon, and dedicated tooltip. Color is never the sole differentiator.
 - **Screen Reader Announcements:** Hidden screen reader prefixes distinguish `Recorded status:`, `Observation:`, and `Accepted result:`.
 - **Reduced Motion:** `@media (prefers-reduced-motion: reduce)` disables all animations and transitions.
-- **Responsive Target Checking:** Fully verified across 1440×900, 1366×768, 1280×800, 1024×768, 768×1024, and 200% zoom.
+- **Responsive Target Checking:** Verified across 1440x900, 1366x768, 1280x800, 1024x768, and 768x1024.
+  A separate documented 200% zoom verification was not performed in this closure pass.
 
 ---
 

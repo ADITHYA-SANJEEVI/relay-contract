@@ -358,6 +358,301 @@ export const SCENARIO_NORMAL_PARTITIONS: PartitionItem[] = [
   }
 ];
 
+export const SCENARIO_C_PARTITIONS: PartitionItem[] = [
+  {
+    id: PARTITION_0_ID,
+    ordinal: 0,
+    status: 'SUCCEEDED',
+    generation: '5',
+    eligible_at: null,
+    last_error_code: null,
+    attempt_id: ATTEMPT_G5_ID,
+    lease_expires_at: '2026-10-03T01:51:30.000Z',
+    hard_deadline_at: '2026-10-03T02:00:00.000Z',
+    accepted_artifact_id: ARTIFACT_G5_ID,
+    accepted_generation: '5',
+    latest_attempt_status: 'SUCCEEDED'
+  },
+  {
+    id: PARTITION_1_ID,
+    ordinal: 1,
+    status: 'RUNNING',
+    generation: '1',
+    eligible_at: null,
+    last_error_code: null,
+    attempt_id: ATTEMPT_ACTIVE_PAST_DEADLINE_ID,
+    lease_expires_at: '2026-10-03T01:59:00.000Z',
+    hard_deadline_at: '2026-10-03T01:59:30.000Z',
+    accepted_artifact_id: null,
+    accepted_generation: null,
+    latest_attempt_status: 'ACTIVE'
+  },
+  {
+    id: PARTITION_2_ID,
+    ordinal: 2,
+    status: 'READY',
+    generation: '0',
+    eligible_at: null,
+    last_error_code: null,
+    attempt_id: null,
+    lease_expires_at: null,
+    hard_deadline_at: null,
+    accepted_artifact_id: null,
+    accepted_generation: null,
+    latest_attempt_status: null
+  },
+  {
+    id: PARTITION_3_ID,
+    ordinal: 3,
+    status: 'FAILED',
+    generation: '3',
+    eligible_at: null,
+    last_error_code: 'worker_crash',
+    attempt_id: 'cccccccc-3333-4333-8333-000000000000',
+    lease_expires_at: '2026-10-03T01:48:00.000Z',
+    hard_deadline_at: '2026-10-03T01:55:00.000Z',
+    accepted_artifact_id: null,
+    accepted_generation: null,
+    latest_attempt_status: 'FAILED'
+  }
+];
+
+export const SCENARIO_D_PARTITIONS: PartitionItem[] = [
+  {
+    id: PARTITION_0_ID,
+    ordinal: 0,
+    status: 'SUCCEEDED',
+    generation: '5',
+    eligible_at: null,
+    last_error_code: null,
+    attempt_id: ATTEMPT_G5_ID,
+    lease_expires_at: '2026-10-03T01:51:30.000Z',
+    hard_deadline_at: '2026-10-03T02:00:00.000Z',
+    accepted_artifact_id: ARTIFACT_G5_ID,
+    accepted_generation: '5',
+    latest_attempt_status: 'SUCCEEDED'
+  },
+  {
+    id: PARTITION_1_ID,
+    ordinal: 1,
+    status: 'SUCCEEDED',
+    generation: '1',
+    eligible_at: null,
+    last_error_code: null,
+    attempt_id: 'cccccccc-1111-4111-8111-111111111111',
+    lease_expires_at: '2026-10-03T01:10:00.000Z',
+    hard_deadline_at: '2026-10-03T01:15:00.000Z',
+    accepted_artifact_id: 'bbbbbbbb-1111-4111-8111-111111111111',
+    accepted_generation: '1',
+    latest_attempt_status: 'SUCCEEDED'
+  },
+  {
+    id: PARTITION_2_ID,
+    ordinal: 2,
+    status: 'FAILED',
+    generation: '2',
+    eligible_at: null,
+    last_error_code: 'max_attempts_exceeded',
+    attempt_id: 'cccccccc-2222-4222-8222-222222222222',
+    lease_expires_at: '2026-10-03T01:12:00.000Z',
+    hard_deadline_at: '2026-10-03T01:18:00.000Z',
+    accepted_artifact_id: null,
+    accepted_generation: null,
+    latest_attempt_status: 'FAILED'
+  },
+  {
+    id: PARTITION_3_ID,
+    ordinal: 3,
+    status: 'FAILED',
+    generation: '3',
+    eligible_at: null,
+    last_error_code: 'worker_crash',
+    attempt_id: 'cccccccc-3333-4333-8333-000000000000',
+    lease_expires_at: '2026-10-03T01:14:00.000Z',
+    hard_deadline_at: '2026-10-03T01:20:00.000Z',
+    accepted_artifact_id: null,
+    accepted_generation: null,
+    latest_attempt_status: 'FAILED'
+  }
+];
+
+export const SCENARIO_C_EVENTS: RelayEvent[] = [
+  {
+    job_id: JOB_ID_RUNNING_WITH_FAILURE,
+    seq: '1',
+    partition_id: null,
+    attempt_id: null,
+    attempt_generation: null,
+    type: 'JOB_SUBMITTED',
+    occurred_at: '2026-10-03T01:30:00.000Z',
+    request_id: 'req-c-sub-001',
+    actor_type: 'operator',
+    actor_id: 'bootstrap-token-operator',
+    from_state: null,
+    to_state: 'QUEUED',
+    details: { partition_count: 4, workload_name: 'normalize_aggregate' }
+  },
+  {
+    job_id: JOB_ID_RUNNING_WITH_FAILURE,
+    seq: '2',
+    partition_id: null,
+    attempt_id: null,
+    attempt_generation: null,
+    type: 'JOB_STARTED',
+    occurred_at: '2026-10-03T01:30:02.000Z',
+    request_id: null,
+    actor_type: 'system',
+    actor_id: 'scheduler',
+    from_state: 'QUEUED',
+    to_state: 'RUNNING',
+    details: {}
+  },
+  {
+    job_id: JOB_ID_RUNNING_WITH_FAILURE,
+    seq: '3',
+    partition_id: PARTITION_0_ID,
+    partition_ordinal: 0,
+    attempt_id: ATTEMPT_G5_ID,
+    attempt_generation: '5',
+    type: 'RESULT_ACCEPTED',
+    occurred_at: '2026-10-03T01:32:00.000Z',
+    request_id: 'req-c-pub-001',
+    actor_type: 'control',
+    actor_id: 'publication-service',
+    from_state: 'RUNNING',
+    to_state: 'SUCCEEDED',
+    details: { artifact_id: ARTIFACT_G5_ID, generation: 5 }
+  },
+  {
+    job_id: JOB_ID_RUNNING_WITH_FAILURE,
+    seq: '4',
+    partition_id: PARTITION_3_ID,
+    partition_ordinal: 3,
+    attempt_id: 'cccccccc-3333-4333-8333-000000000000',
+    attempt_generation: '3',
+    type: 'ATTEMPT_FAILED',
+    occurred_at: '2026-10-03T01:35:00.000Z',
+    request_id: null,
+    actor_type: 'worker',
+    actor_id: 'worker-node-prod-east-1c',
+    from_state: 'RUNNING',
+    to_state: 'FAILED',
+    details: { error_code: 'worker_crash' }
+  }
+];
+
+export const SCENARIO_D_EVENTS: RelayEvent[] = [
+  {
+    job_id: JOB_ID_FAILED_WITH_PARTIAL,
+    seq: '1',
+    partition_id: null,
+    attempt_id: null,
+    attempt_generation: null,
+    type: 'JOB_SUBMITTED',
+    occurred_at: '2026-10-03T01:00:00.000Z',
+    request_id: 'req-d-sub-001',
+    actor_type: 'operator',
+    actor_id: 'bootstrap-token-operator',
+    from_state: null,
+    to_state: 'QUEUED',
+    details: { partition_count: 4, workload_name: 'normalize_aggregate' }
+  },
+  {
+    job_id: JOB_ID_FAILED_WITH_PARTIAL,
+    seq: '2',
+    partition_id: null,
+    attempt_id: null,
+    attempt_generation: null,
+    type: 'JOB_STARTED',
+    occurred_at: '2026-10-03T01:00:05.000Z',
+    request_id: null,
+    actor_type: 'system',
+    actor_id: 'scheduler',
+    from_state: 'QUEUED',
+    to_state: 'RUNNING',
+    details: {}
+  },
+  {
+    job_id: JOB_ID_FAILED_WITH_PARTIAL,
+    seq: '3',
+    partition_id: PARTITION_0_ID,
+    partition_ordinal: 0,
+    attempt_id: ATTEMPT_G5_ID,
+    attempt_generation: '5',
+    type: 'RESULT_ACCEPTED',
+    occurred_at: '2026-10-03T01:05:00.000Z',
+    request_id: 'req-d-pub-001',
+    actor_type: 'control',
+    actor_id: 'publication-service',
+    from_state: 'RUNNING',
+    to_state: 'SUCCEEDED',
+    details: { artifact_id: ARTIFACT_G5_ID, generation: 5 }
+  },
+  {
+    job_id: JOB_ID_FAILED_WITH_PARTIAL,
+    seq: '4',
+    partition_id: PARTITION_1_ID,
+    partition_ordinal: 1,
+    attempt_id: 'cccccccc-1111-4111-8111-111111111111',
+    attempt_generation: '1',
+    type: 'RESULT_ACCEPTED',
+    occurred_at: '2026-10-03T01:08:00.000Z',
+    request_id: 'req-d-pub-002',
+    actor_type: 'control',
+    actor_id: 'publication-service',
+    from_state: 'RUNNING',
+    to_state: 'SUCCEEDED',
+    details: { artifact_id: 'bbbbbbbb-1111-4111-8111-111111111111', generation: 1 }
+  },
+  {
+    job_id: JOB_ID_FAILED_WITH_PARTIAL,
+    seq: '5',
+    partition_id: PARTITION_2_ID,
+    partition_ordinal: 2,
+    attempt_id: 'cccccccc-2222-4222-8222-222222222222',
+    attempt_generation: '2',
+    type: 'ATTEMPT_FAILED',
+    occurred_at: '2026-10-03T01:10:00.000Z',
+    request_id: null,
+    actor_type: 'worker',
+    actor_id: 'worker-node-prod-east-1a',
+    from_state: 'RUNNING',
+    to_state: 'FAILED',
+    details: { error_code: 'max_attempts_exceeded' }
+  },
+  {
+    job_id: JOB_ID_FAILED_WITH_PARTIAL,
+    seq: '6',
+    partition_id: PARTITION_3_ID,
+    partition_ordinal: 3,
+    attempt_id: 'cccccccc-3333-4333-8333-000000000000',
+    attempt_generation: '3',
+    type: 'ATTEMPT_FAILED',
+    occurred_at: '2026-10-03T01:12:00.000Z',
+    request_id: null,
+    actor_type: 'worker',
+    actor_id: 'worker-node-prod-east-1c',
+    from_state: 'RUNNING',
+    to_state: 'FAILED',
+    details: { error_code: 'worker_crash' }
+  },
+  {
+    job_id: JOB_ID_FAILED_WITH_PARTIAL,
+    seq: '7',
+    partition_id: null,
+    attempt_id: null,
+    attempt_generation: null,
+    type: 'JOB_FAILED',
+    occurred_at: '2026-10-03T01:15:30.000Z',
+    request_id: null,
+    actor_type: 'system',
+    actor_id: 'scheduler',
+    from_state: 'RUNNING',
+    to_state: 'FAILED',
+    details: { failed_partitions: 2, accepted_partitions: 2 }
+  }
+];
+
 export const SCENARIO_NORMAL_EVENTS: RelayEvent[] = [
   {
     job_id: JOB_ID_NORMAL,

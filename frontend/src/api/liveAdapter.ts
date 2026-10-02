@@ -38,7 +38,7 @@ export class LiveDataAdapter {
         isLive: true,
         isSynthetic: false,
         apiReachable: liveRes.data.live,
-        readinessPassed: readyRes?.ready ?? false,
+        readinessPassed: readyRes ? readyRes.ready : null,
         dbRevision: readyRes?.migration_revision,
         lastObservedAt: asOf,
       };
@@ -163,13 +163,17 @@ export class LiveDataAdapter {
 
   getAuthorityForPartition(partition: PartitionItem): AuthorityState {
     if (partition.accepted_artifact_id) {
+      // In baseline Relay GET /v1/jobs/{job}/partitions, attempt_id is the latest attempt ID
+      // and generation is current generation. They do NOT prove which attempt produced
+      // the accepted artifact. Never infer latest attempt == accepted attempt or
+      // current generation == accepted generation.
       return {
         status: 'ACCEPTED',
         partition_id: partition.id,
         partition_ordinal: partition.ordinal,
         artifact_id: partition.accepted_artifact_id,
-        generation: partition.accepted_generation || undefined,
-        attempt_id: partition.attempt_id || undefined,
+        generation: undefined,
+        attempt_id: undefined,
       };
     }
     return {

@@ -7,6 +7,16 @@ import { SyntheticBanner } from '../common/SyntheticBanner';
 export const AppShell: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarOpen]);
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[var(--color-canvas)] text-[var(--color-text-primary)]">
       {/* Skip link for keyboard accessibility */}
@@ -18,21 +28,24 @@ export const AppShell: React.FC = () => {
       <SyntheticBanner />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Desktop Sidebar */}
-        <Sidebar className="hidden md:flex" />
+        {/* Desktop Sidebar (Persistent at >= 1280px) */}
+        <Sidebar className="hidden xl:flex" />
 
-        {/* Mobile/Tablet Drawer Backdrop & Sidebar */}
+        {/* Mobile/Tablet Drawer Backdrop & Sidebar (< 1280px) */}
         {sidebarOpen && (
           <div 
-            className="fixed inset-0 z-40 bg-black/60 md:hidden"
+            className="fixed inset-0 z-40 bg-black/60 xl:hidden"
             onClick={() => setSidebarOpen(false)}
             aria-hidden="true"
           />
         )}
         <div 
-          className={`fixed inset-y-0 left-0 z-50 transform md:hidden transition-transform duration-200 ease-in-out ${
+          className={`fixed inset-y-0 left-0 z-50 transform xl:hidden transition-transform duration-200 ease-in-out ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
+          role="dialog"
+          aria-label="Navigation drawer"
+          aria-modal={sidebarOpen}
         >
           <Sidebar />
         </div>
