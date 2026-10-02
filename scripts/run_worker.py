@@ -18,15 +18,16 @@ from relay.worker.process import run
 parser = argparse.ArgumentParser()
 parser.add_argument("--base-url", default="http://127.0.0.1:8000")
 parser.add_argument("--polls", type=int, default=1)
+parser.add_argument("--complete", action="store_true", help="Publish the verified artifact through the fenced complete endpoint")
 args = parser.parse_args()
 url = urlsplit(args.base_url)
 if url.scheme != "http" or url.hostname not in ("127.0.0.1", "localhost") or url.username or url.password:
-    raise SystemExit("M1B worker requires the trusted localhost API")
+    raise SystemExit("Relay worker requires the trusted localhost API")
 bootstrap = os.environ.pop("RELAY_WORKER_BOOTSTRAP_TOKEN", "")
 if not bootstrap: raise SystemExit("RELAY_WORKER_BOOTSTRAP_TOKEN is required")
 try:
     if not 1 <= args.polls <= 100: raise ValueError("invalid_poll_bound")
-    print(json.dumps(run(args.base_url, bootstrap, polls=args.polls), sort_keys=True))
+    print(json.dumps(run(args.base_url, bootstrap, polls=args.polls, complete=args.complete), sort_keys=True))
 except Exception as error:
     # No raw request, token, data or traceback in worker output.
     safe_code = str(error) if isinstance(error, (RuntimeError, ValueError)) and re.fullmatch(r"[a-z_]{1,64}", str(error)) else "worker_error"

@@ -78,3 +78,13 @@ class ArtifactReservation(ContractModel):
     sha256: Hash
     size_bytes: Counter
     schema_hash: Hash
+
+
+class Completion(ContractModel):
+    request_id: Annotated[str, Field(min_length=1, max_length=128)]
+    job_id: UUID
+    partition_id: UUID
+    generation: Counter
+    artifact_id: UUID
+    artifact_uri: Annotated[str, Field(min_length=1, max_length=2048)]
+    sha256: Hash

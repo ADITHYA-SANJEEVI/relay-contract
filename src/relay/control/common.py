@@ -54,10 +54,10 @@ def save_receipt(c, scope, key, request_hash, operation, status, response, **ide
 
 
 def append_event(c, job, event_type, actor_id, *, partition=None, attempt=None, generation=None,
-                 from_state=None, to_state=None, occurred_at=None, details=None):
+                 from_state=None, to_state=None, occurred_at=None, details=None, request_id=None):
     values = dict(job_id=job["id"], seq=job["next_event_seq"], type=event_type,
         actor_type="operator" if event_type == "JOB_SUBMITTED" else "worker", actor_id=str(actor_id),
-        from_state=from_state, to_state=to_state, details=details or {})
+        from_state=from_state, to_state=to_state, details=details or {}, request_id=request_id)
     if occurred_at is not None: values["occurred_at"] = occurred_at
     if partition is not None: values["partition_id"] = partition
     if attempt is not None:

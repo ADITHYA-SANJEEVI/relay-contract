@@ -1,4 +1,4 @@
-"""M1B HTTP surface. Success responses are constructed after transaction commit."""
+"""Relay HTTP surface. Success responses follow transaction commit."""
 
 import hashlib
 import json
@@ -20,10 +20,11 @@ from relay.artifacts.gateway import Gateway
 from relay.config import load_settings
 from relay.control.common import Rejection, one, wire
 from relay.control.service import Control, artifact_response, input_response
+from relay.control.publication import accepted_response
 from relay.db import schema as db
 from relay.db.connection import database_url, make_engine
 
-from .models import ArtifactReservation, Claim, InputReservation, Registration, Submission
+from .models import ArtifactReservation, Claim, Completion, InputReservation, Registration, Submission
 
 logger = logging.getLogger("relay.api")
 
@@ -199,6 +200,36 @@ def create_app(settings):
             else str(row["attempt_generation"])} for row in rows[:limit]],
             "next_cursor": str(rows[limit - 1]["seq"]) if len(rows) > limit else None})
 
+    @app.get("/v1/jobs/{identity}/results")
+    def get_results(identity: UUID, request: Request, after_ordinal: int = Query(-1, ge=-1),
+                    limit: int = Query(100, ge=1, le=500)):
+        operator(request)
+        p, r, f = db.partitions, db.accepted_results, db.artifacts
+        # Read-only snapshot covers status, count and this ordinal page. No store
+        # I/O until the transaction and connection have both closed.
+        with engine.connect().execution_options(isolation_level="REPEATABLE READ") as c:
+            with c.begin():
+                c.execute(sa.text("SET TRANSACTION READ ONLY"))
+                job = one(c, db.jobs, db.jobs.c.id == identity)
+                count = c.scalar(sa.select(sa.func.count()).select_from(r.join(p, p.c.id == r.c.partition_id))
+                                 .where(p.c.job_id == identity))
+                rows = c.execute(sa.select(r, p.c.ordinal)
+                    .select_from(r.join(p, p.c.id == r.c.partition_id).join(f, f.c.id == r.c.artifact_id))
+                    .where(p.c.job_id == identity, p.c.ordinal > after_ordinal)
+                    .order_by(p.c.ordinal).limit(limit + 1)).mappings().all()
+                artifacts = {row["id"]: dict(row) for row in c.execute(sa.select(f).where(
+                    f.c.id.in_([row["artifact_id"] for row in rows[:limit]]))).mappings()}
+        items = []
+        for row in rows[:limit]:
+            artifact = artifacts[row["artifact_id"]]
+            with gateway.verified_result(artifact):
+                pass  # Integrity checked against this exact immutable version.
+            items.append(accepted_response(row, artifact) | {"ordinal": row["ordinal"],
+                         "content_url": f"/v1/artifacts/{row['artifact_id']}/content"})
+        return wire({"job_id": identity, "job_status": job["status"], "complete": job["status"] == "SUCCEEDED",
+            "partial_result_count": str(count), "partition_count": str(job["partition_count"]), "items": items,
+            "next_cursor": rows[limit - 1]["ordinal"] if len(rows) > limit else None})
+
     @app.post("/v1/workers/register")
     async def register(request: Request):
         if not secrets.compare_digest(request.headers.get("Authorization", "").encode(), ("Bearer " + settings["RELAY_WORKER_BOOTSTRAP_TOKEN"]).encode()):
@@ -229,8 +260,8 @@ def create_app(settings):
         return wire({k: row[k] for k in ("id", "partition_id", "worker_session_id", "status", "claimed_at", "lease_expires_at", "hard_deadline_at")} | {
             "generation": str(row["generation"]), "current_generation": str(partition["generation"]), "db_time": t,
             "job_status": job["status"], "partition_status": partition["status"],
-            "artifact": artifact_response(artifact) if artifact else None, "accepted_result": dict(accepted) | {
-                "generation": str(accepted["generation"])} if accepted else None})
+            "artifact": artifact_response(artifact) if artifact else None,
+            "accepted_result": accepted_response(accepted, artifact) if accepted else None})
 
     @app.get("/v1/attempts/{identity}/inputs/{ordinal}/content")
     def download_slice(identity: UUID, ordinal: int, request: Request):
@@ -247,6 +278,33 @@ def create_app(settings):
         model = await model_body(request, ArtifactReservation)
         status, response = await run_in_threadpool(control.reserve_artifact, session, identity, model)
         return JSONResponse(status_code=status, content=response)
+
+    @app.post("/v1/attempts/{identity}/complete")
+    async def complete(identity: UUID, request: Request):
+        session = await run_in_threadpool(worker, request)
+        model = await model_body(request, Completion)
+        status, response = await run_in_threadpool(control.complete, session, identity, model)
+        return JSONResponse(status_code=status, content=response)
+
+    @app.get("/v1/artifacts/{identity}/content")
+    def accepted_content(identity: UUID, request: Request):
+        token = request.headers.get("Authorization", "")
+        is_operator = secrets.compare_digest(token.encode(), ("Bearer " + settings["RELAY_OPERATOR_TOKEN"]).encode())
+        session = None if is_operator else worker(request)
+        with engine.connect() as c:
+            if is_operator:
+                one(c, db.accepted_results, db.accepted_results.c.artifact_id == identity)
+            artifact = one(c, db.artifacts, db.artifacts.c.id == identity)
+            if not is_operator:
+                attempt = one(c, db.attempts, db.attempts.c.id == artifact["attempt_id"])
+                if attempt["worker_session_id"] != session: raise Rejection("wrong_owner", 403)
+                if artifact["status"] != "VERIFIED": raise Rejection("artifact_not_verified")
+        file = gateway.verified_result(artifact)
+        def chunks():
+            with file:
+                while chunk := file.read(1024 * 1024): yield chunk
+        return StreamingResponse(chunks(), media_type="application/vnd.apache.parquet",
+            headers={"X-SHA256": artifact["verified_sha256"], "X-Object-Version": artifact["object_version"]})
 
     @app.put("/v1/artifacts/{identity}/content")
     async def upload_artifact(identity: UUID, request: Request):

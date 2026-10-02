@@ -22,7 +22,7 @@ def require(response, status):
     return response.json()
 
 
-def run(base_url, bootstrap, *, polls=1, display_name="m1b-worker"):
+def run(base_url, bootstrap, *, polls=1, display_name="relay-worker", complete=False):
     # A fresh boot identity; never reuse a prior process's session automatically.
     session, secret = str(uuid4()), secrets.token_hex(32)
     started = time.monotonic()
@@ -72,8 +72,21 @@ def run(base_url, bootstrap, *, polls=1, display_name="m1b-worker"):
         if (verified["status"] != "VERIFIED" or verified["sha256"] != digest
             or verified["size_bytes"] != str(len(data)) or verified["schema_hash"] != OUTPUT_SCHEMA_HASH):
             raise RuntimeError("verification_identity_mismatch")
-        return dict(phase="VERIFIED_UNACCEPTED", worker_pid=os.getpid(), worker_session_id=session,
+        accepted = None
+        if complete:
+            publication = require(client.post(f"/v1/attempts/{claim['attempt_id']}/complete", headers=headers, json={
+                "request_id": str(uuid4()), "job_id": claim["job_id"], "partition_id": claim["partition_id"],
+                "generation": claim["generation"], "artifact_id": verified["id"],
+                "artifact_uri": verified["artifact_uri"], "sha256": digest}), (201, 200))
+            accepted = publication["accepted_result"]
+            if (accepted["artifact_id"] != verified["id"] or accepted["sha256"] != digest
+                or accepted["attempt_id"] != claim["attempt_id"] or accepted["generation"] != claim["generation"]
+                or accepted["object_version"] != verified["object_version"]
+                or accepted["partition_id"] != claim["partition_id"]):
+                raise RuntimeError("acceptance_identity_mismatch")
+        return dict(phase="ACCEPTED" if complete else "VERIFIED_UNACCEPTED", worker_pid=os.getpid(), worker_session_id=session,
             job_id=claim["job_id"], partition_id=claim["partition_id"], attempt_id=claim["attempt_id"],
             generation=claim["generation"], artifact_id=verified["id"], object_version=verified["object_version"],
             sha256=digest, size_bytes=str(len(data)), counters=counters,
+            **({"accepted_result": accepted, "job_status": publication["job_status"]} if complete else {}),
             elapsed_seconds=round(time.monotonic() - started, 3))

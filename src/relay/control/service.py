@@ -1,4 +1,4 @@
-"""Explicit runtime-only transactions. No publication, renewal or settlement."""
+"""Explicit runtime-only transactions. No renewal or recovery settlement."""
 
 import hashlib
 import secrets
@@ -12,6 +12,7 @@ from relay.db import schema as db
 from relay.workloads.reference import INPUT_SCHEMA_HASH, OUTPUT_SCHEMA_HASH, WORKLOAD, WORKLOAD_DIGEST
 
 from .common import Rejection, append_event, canonical, db_time, fingerprint, one, receipt, save_receipt, wire
+from .publication import artifact_uri, publish
 
 
 def input_response(row):
@@ -29,10 +30,14 @@ def artifact_response(row):
         "sha256": row["verified_sha256"], "size_bytes": None if row["verified_size_bytes"] is None else str(row["verified_size_bytes"]),
         "schema_hash": row["verified_schema_hash"], "object_version": row["object_version"],
         "verified_at": row["verified_at"], "rejection_code": row["rejection_code"],
+        "artifact_uri": artifact_uri(row) if row["object_version"] else None,
         "upload_url": f"/v1/artifacts/{row['id']}/content"})
 
 
 class Control:
+    def complete(self, worker, attempt_id, model):
+        return publish(self.engine, worker, attempt_id, model)
+
     def __init__(self, engine, settings):
         self.engine, self.settings = engine, settings
         self.operator_identity = hashlib.sha256(settings["RELAY_OPERATOR_TOKEN"].encode()).hexdigest()

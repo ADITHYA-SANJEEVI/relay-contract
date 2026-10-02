@@ -1,6 +1,6 @@
 # Relay architecture contract — v1.0
 
-Prepared 2 October 2026 from the two supplied Relay briefs. This checkout contains the architecture contract, accepted [M0 amendments](docs/decisions/2026-10-02-m0-contract-amendments.md), M0 infrastructure gates, M1A persistence and the M1B path through a VERIFIED, unaccepted artifact. Authoritative publication, recovery and benchmarks remain unimplemented.
+Prepared 2 October 2026 from the two supplied Relay briefs. This checkout contains the architecture contract, accepted [M0 amendments](docs/decisions/2026-10-02-m0-contract-amendments.md), M0 infrastructure gates, M1A persistence, M1B verified artifacts and M1C fenced publication with accepted results. Renewal, recovery, cancellation and benchmarks remain unimplemented.
 
 Start with [docs/SPEC.md](docs/SPEC.md), then follow its reading order. The nine documents include the architecture diagram, technology choices, schema and transactional pseudocode, state machines, failure outcomes, APIs, invariant-driven tests, reproducible fault/benchmark methodology, risk register and sequential milestones.
 
@@ -74,7 +74,7 @@ Alembic is the deployed DDL authority; runtime startup never calls `metadata.cre
 
 `src/relay/db` contains explicit Core metadata, psycopg engine configuration, explicit session/transaction construction, and the documented lock order. pytest and Alembic configure the `src` import path. The default engine sets READ COMMITTED, synchronous commit, a 2s lock timeout and 5s statement/idle-transaction timeouts. Future services must explicitly lock rows in the contract order and sample fresh DB time afterward. Deferred triggers check transaction state; they do not authenticate requests, enforce the live lease predicate or serialize concurrent operations. See [M1A_EVIDENCE.md](docs/M1A_EVIDENCE.md) for observed constraint evidence and remaining obligations.
 
-## M1B local API and worker
+## M1B / M1C local API and worker
 
 After the regression gates pass, configure local API tokens, migrate and start the API in a terminal:
 
@@ -97,20 +97,34 @@ Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
 .\.venv\Scripts\python.exe scripts/run_worker.py --base-url http://127.0.0.1:8000 --polls 1
 ```
 
-The worker creates a fresh boot UUID/secret, registers, claims, downloads only assigned slices through the API, executes, reserves/uploads an output and exits at VERIFIED. It never reads `.env` or uses database/store clients. The launcher strips ambient infrastructure/operator credentials. Its JSON result reports `VERIFIED_UNACCEPTED`, identities, hash and deterministic counters. When no work exists it reports `NO_WORK`. No automatic renewal or claim replay transport loop is implemented; a replayed claim is queried and checked against DB time before execution.
+The default worker mode creates a fresh boot UUID/secret, registers, claims, downloads only assigned slices through the API, executes, reserves/uploads an output and exits at VERIFIED. It never reads `.env` or uses database/store clients. The launcher strips ambient infrastructure/operator credentials. Its JSON result reports `VERIFIED_UNACCEPTED`, identities, hash and deterministic counters. When no work exists it reports `NO_WORK`. No automatic renewal or claim replay transport loop is implemented; a replayed claim is queried and checked against DB time before execution.
 
-Required endpoints are live/ready, input reserve/upload/read, job submit/read/partitions/events, worker register/claim, attempt read, assigned input-slice read and artifact reserve/upload. There are no complete/fail/renew/cancel endpoints or success transitions. Reads expose actual accepted rows only. A VERIFIED artifact leaves its attempt ACTIVE and partition/job RUNNING, with `complete=false` and zero accepted results.
+Endpoints include live/ready, input reserve/upload/read, job submit/read/partitions/events, worker register/claim, attempt read, assigned input-slice read and artifact reserve/upload. A VERIFIED artifact alone leaves its attempt ACTIVE and partition/job RUNNING, with `complete=false` and zero accepted results. M1C adds completion and accepted-result reads; fail/renew/cancel remain absent.
+
+For one full M1C execution through acceptance, use:
+
+```powershell
+Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
+.\.venv\Scripts\python.exe scripts/run_worker.py --base-url http://127.0.0.1:8000 --polls 1 --complete
+```
+
+After VERIFIED, this mode sends `POST /v1/attempts/{id}/complete` and exits only after observing the matching accepted identity (`phase=ACCEPTED`). Each invocation is a fresh session and processes one partition. Run enough invocations to finish a finite job. Work must finish within its original lease; no lease is silently extended.
+
+Completion requires `{request_id,job_id,partition_id,generation,artifact_id,artifact_uri,sha256}`. Use the `artifact_uri` returned by verification: `s3://<registered-bucket>/<registered-key>?versionId=<URL-encoded-opaque-version>`. This string identifies registered metadata; the API never fetches caller-provided URLs. Request IDs are bounded nonempty strings of at most 128 characters. New acceptance uses a full conditional SQL ownership gate after job → partition → attempt → artifact locks and a fresh DB clock sample. Success returns 201; exact historical replay returns 200 with unchanged `accepted_at`, even after expiry. A known rejection is durable per worker/request ID; a corrected request uses a new ID. A 503 can represent unknown commit outcome, so reconcile through the same completion or result reads.
+
+`GET /v1/jobs/{id}/results` returns accepted manifests in ordinal order, with pagination, status, count and complete flag. It verifies each page's exact pinned versions outside the read-only DB snapshot. Operator `GET /v1/artifacts/{id}/content` serves accepted content only; the owning worker can also read its VERIFIED output. Bytes are verified before streaming, with `X-SHA256` and `X-Object-Version` headers. Missing/corrupt pinned versions return explicit `integrity_failure` without substitution, metadata replacement or recomputation.
 
 Run M1B and regressions separately, checking each exit status:
 
 ```powershell
 Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
 .\.venv\Scripts\python.exe -m pytest tests/unit tests/integration -v -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/publication -v -s --maxfail=1
 .\.venv\Scripts\python.exe -m pytest tests/persistence -v -s --maxfail=1
 .\.venv\Scripts\python.exe -m pytest tests/infrastructure tests/storage_contract -v -s --maxfail=1
 ```
 
-Integration tests launch a real API process and a credential-restricted independent worker, use disposable UUID-named databases on Compose PostgreSQL, and retain immutable test objects in MinIO. Harness temporary credentials/logs are confined to ignored workspace cache children and removed after their processes exit. The storage observer uses real gateway calls and checks both pool state and PostgreSQL transaction state; it does not mock S3. [M1B_EVIDENCE.md](docs/M1B_EVIDENCE.md) records the retained application-database trace and test outcomes. Full T01 and M1C are not complete.
+Integration tests launch a real API process and credential-restricted independent workers, use disposable UUID-named databases on Compose PostgreSQL, and retain immutable test objects in MinIO. Harness temporary credentials/logs are confined to ignored workspace cache children and removed after their processes exit. The storage observer uses real gateway calls and checks both pool state and PostgreSQL transaction state; it does not mock S3. [M1B_EVIDENCE.md](docs/M1B_EVIDENCE.md) records the previous pass. [M1C_EVIDENCE.md](docs/M1C_EVIDENCE.md) records full three-partition T01, basic T05 completion concurrency, T26 and rejection/replay evidence. Test-only SQL triggers/barriers exist solely in disposable databases; no production fault-control endpoint is installed. The missing-version test deliberately deletes only its own fixture's pinned version using the trusted storage administrator to establish explicit integrity failure.
 
 ## Pinned candidate build
 

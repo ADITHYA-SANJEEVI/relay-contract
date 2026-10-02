@@ -1,4 +1,6 @@
 import hashlib
+import json
+import logging
 from contextlib import closing
 from tempfile import SpooledTemporaryFile
 
@@ -11,6 +13,8 @@ from relay.control.common import Rejection, one
 from relay.control.service import artifact_response, input_response
 from relay.db import schema as db
 from relay.workloads.reference import INPUT_SCHEMA, OUTPUT_SCHEMA, WorkloadError, read_parquet, write_parquet
+
+logger = logging.getLogger("relay.artifacts")
 
 
 class Gateway:
@@ -128,3 +132,21 @@ class Gateway:
             raise Rejection("storage_unavailable", 503) from error
         except WorkloadError as error:
             raise Rejection("input_integrity_failure", 422) from error
+
+    def verified_result(self, row):
+        stored = None
+        try:
+            stored = self.read_exact(row, row["object_version"], row["verified_sha256"], row["verified_size_bytes"])
+            read_parquet(stored, OUTPUT_SCHEMA)
+            stored.seek(0)
+            return stored
+        except (BotoCoreError, ClientError) as error:
+            if stored is not None: stored.close()
+            if not isinstance(error, ClientError) or error.response["ResponseMetadata"]["HTTPStatusCode"] != 404:
+                raise Rejection("storage_unavailable", 503) from error
+        except (WorkloadError, Rejection):
+            if stored is not None: stored.close()
+        logger.error(json.dumps({"component": "artifacts", "operation": "accepted_read",
+                                "artifact_id": str(row["id"]), "error_code": "integrity_failure"}))
+        # No mutation, fallback version or automatic recomputation.
+        raise Rejection("integrity_failure", 422)
