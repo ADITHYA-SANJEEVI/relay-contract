@@ -22,10 +22,11 @@ from relay.control.common import Rejection, one, wire
 from relay.control.service import Control, artifact_response, input_response
 from relay.control.publication import accepted_response
 from relay.control.leases import heartbeat, lifecycle, renew
+from relay.control.settlement import fail
 from relay.db import schema as db
 from relay.db.connection import database_url, make_engine
 
-from .models import ArtifactReservation, Claim, Completion, Heartbeat, InputReservation, Registration, Renewal, Submission
+from .models import ArtifactReservation, Claim, Completion, Failure, Heartbeat, InputReservation, Registration, Renewal, Submission
 
 logger = logging.getLogger("relay.api")
 
@@ -304,6 +305,7 @@ def create_app(settings):
         return wire({k: row[k] for k in ("id", "partition_id", "worker_session_id", "status", "claimed_at", "lease_expires_at", "hard_deadline_at")} | {
             "generation": str(row["generation"]), "current_generation": str(partition["generation"]), "db_time": t,
             "last_renew_seq": str(row["last_renew_seq"]), "last_renew_response": row["last_renew_response"],
+            "failure_code": row["failure_code"], "finished_at": row["finished_at"],
             "job_status": job["status"], "partition_status": partition["status"],
             "artifact": artifact_response(artifact) if artifact else None,
             "accepted_result": accepted_response(accepted, artifact) if accepted else None})
@@ -330,6 +332,16 @@ def create_app(settings):
         model = await model_body(request, Completion)
         status, response = await run_in_threadpool(control.complete, session, identity, model)
         return JSONResponse(status_code=status, content=response)
+
+    @app.post("/v1/attempts/{identity}/fail")
+    async def attempt_fail(identity: UUID, request: Request):
+        session = await run_in_threadpool(worker, request)
+        model = await model_body(request, Failure)
+        response = await run_in_threadpool(fail, engine, session, identity, model)
+        logger.info(json.dumps({"component": "control", "operation": "failure", "attempt_id": str(identity),
+            "job_id": str(model.job_id), "partition_id": str(model.partition_id), "generation": model.generation,
+            "outcome": response["partition_status"], "reason": model.code, "eligible_at": response["eligible_at"]}))
+        return response
 
     @app.get("/v1/artifacts/{identity}/content")
     def accepted_content(identity: UUID, request: Request):

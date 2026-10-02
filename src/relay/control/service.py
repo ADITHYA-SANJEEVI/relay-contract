@@ -1,4 +1,4 @@
-"""Explicit runtime-only transactions. No recovery settlement."""
+"""Explicit runtime-only control transactions."""
 
 import hashlib
 import secrets

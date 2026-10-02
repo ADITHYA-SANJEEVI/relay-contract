@@ -58,6 +58,12 @@ Complete response includes accepted_result `{partition_id,attempt_id,generation,
 
 Conflict codes: stale_generation, lease_expired, attempt_terminal, job_cancelled, terminal_job, result_conflict, artifact_not_verified, artifact_identity_mismatch, idempotency_conflict, worker_busy, worker_draining. A failed validity predicate does not consume another attempt. Request_id is reused after transport uncertainty; a deliberate new publication attempt after an earlier known rejection gets a new request_id.
 
+### M3 implementation bounds for failure reports
+
+The implemented failure codes are retryable `worker_crash`, `store_transient`, `transport_error`, and nonretryable `input_invalid`, `schema_mismatch`, `workload_validation`, `integer_overflow`. Unknown codes reject 422. The worker cannot supply a retryability override. `detail` is a required JSON object with at most 4,096 bytes in canonical UTF-8 JSON; it is stored with the terminal attempt but never echoed into errors/events/logs. Unknown fields and invalid representations reject 422.
+
+Failure response records job/partition/attempt IDs, decimal generation, attempt_status, failure_code, finished_at, partition_status (READY or FAILED), and the original eligible_at (null for FAILED). Exact terminal failure replay reconstructs this same disposition from immutable attempt fields and job policy, even after reassignment; it does not report a new transition or change current partition state. GET attempt exposes failure_code and finished_at for reconciliation.
+
 ## Observability
 
 Post-acceptance integrity failures on exact pinned-version reads are explicit errors with structured logs and appropriate metrics. Accepted metadata is unchanged; another object is never substituted and a terminal partition is not automatically recomputed. Durable, deduplicated, queryable integrity-incident persistence and a query API for it are deferred beyond V1.

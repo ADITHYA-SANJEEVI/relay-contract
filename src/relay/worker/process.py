@@ -15,6 +15,7 @@ import pyarrow as pa
 
 from relay.workloads.reference import INPUT_SCHEMA, OUTPUT_SCHEMA_HASH, WORKLOAD_DIGEST, read_parquet
 from .maintenance import Maintenance
+from .reconciliation import retry_same
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -87,22 +88,22 @@ def require(response, status):
 
 
 def run(base_url, bootstrap, *, polls=1, display_name="relay-worker", complete=False,
-        _child_command=None, _claim_transport=None):
+        _child_command=None, _claim_transport=None, _before_publication=None, _complete_transport=None):
     # A fresh boot identity; never reuse a prior process's session automatically.
     session, secret = str(uuid4()), secrets.token_hex(32)
     started = time.monotonic()
     with httpx.Client(base_url=base_url, timeout=15, trust_env=False) as client:
-        require(client.post("/v1/workers/register", headers={"Authorization": "Bearer " + bootstrap}, json={
+        registration = {
             "session_id": session, "session_secret": secret, "display_name": display_name,
-            "deployment_workload_digest": WORKLOAD_DIGEST}), (201,))
+            "deployment_workload_digest": WORKLOAD_DIGEST}
+        require(retry_same(lambda: client.post("/v1/workers/register", headers={"Authorization": "Bearer " + bootstrap},
+                                               json=registration), "register"), (201, 200))
         headers = {"Authorization": "Bearer " + secret, "X-Worker-Session": session}
         claim = None
         for index in range(polls):
             claim_key = str(uuid4())
-            if _claim_transport:
-                response = _claim_transport(client, session, headers, claim_key)
-            else:
-                response = client.post(f"/v1/workers/{session}/claim", headers=headers | {"Idempotency-Key": claim_key}, json={})
+            response = retry_same(lambda: _claim_transport(client, session, headers, claim_key) if _claim_transport else
+                client.post(f"/v1/workers/{session}/claim", headers=headers | {"Idempotency-Key": claim_key}, json={}), "claim")
             if response.status_code == 204:
                 if index + 1 < polls: time.sleep(min(0.25 * 2 ** index, 2))
                 continue
@@ -122,35 +123,51 @@ def run(base_url, bootstrap, *, polls=1, display_name="relay-worker", complete=F
         maintenance = Maintenance(base_url, headers, claim, current, observed_at)
         maintenance.start()
         try:
-            return finish(client, headers, claim, maintenance, started, session, complete, _child_command)
+            return finish(client, headers, claim, maintenance, started, session, complete, _child_command,
+                          _before_publication, _complete_transport)
         finally:
             maintenance.stop()
 
 
-def finish(client, headers, claim, maintenance, started, session, complete, child_command):
+def finish(client, headers, claim, maintenance, started, session, complete, child_command, before_publication, complete_transport):
     data, child = compute_child(client, headers, claim, maintenance, child_command)
     counters = child["counters"]
     maintenance.check()
     digest = hashlib.sha256(data).hexdigest()
-    artifact = require(client.post(f"/v1/attempts/{claim['attempt_id']}/artifact", headers=headers, json={
+    reservation = {
         "job_id": claim["job_id"], "partition_id": claim["partition_id"], "generation": claim["generation"],
-        "sha256": digest, "size_bytes": str(len(data)), "schema_hash": OUTPUT_SCHEMA_HASH}), (201, 200))
+        "sha256": digest, "size_bytes": str(len(data)), "schema_hash": OUTPUT_SCHEMA_HASH}
+    artifact = require(retry_same(lambda: client.post(f"/v1/attempts/{claim['attempt_id']}/artifact",
+        headers=headers, json=reservation), "artifact"), (201, 200))
     if artifact["upload_url"] != f"/v1/artifacts/{artifact['id']}/content": raise RuntimeError("invalid_upload_url")
     maintenance.check()
-    verified = require(client.put(artifact["upload_url"], headers=headers | {
-        "Content-Type": "application/vnd.apache.parquet"}, content=data), (200,))
+    verified = require(retry_same(lambda: client.put(artifact["upload_url"], headers=headers | {
+        "Content-Type": "application/vnd.apache.parquet"}, content=data), "upload"), (200,))
     if (verified["status"] != "VERIFIED" or verified["sha256"] != digest
         or verified["size_bytes"] != str(len(data)) or verified["schema_hash"] != OUTPUT_SCHEMA_HASH):
         raise RuntimeError("verification_identity_mismatch")
     accepted = None
+    reconciliations = []
     if complete:
         # Avoid renewal racing the successful ACTIVE->SUCCEEDED transition.
         maintenance.stop()
         maintenance.check()
-        publication = require(client.post(f"/v1/attempts/{claim['attempt_id']}/complete", headers=headers, json={
+        completion = {
             "request_id": str(uuid4()), "job_id": claim["job_id"], "partition_id": claim["partition_id"],
             "generation": claim["generation"], "artifact_id": verified["id"],
-            "artifact_uri": verified["artifact_uri"], "sha256": digest}), (201, 200))
+            "artifact_uri": verified["artifact_uri"], "sha256": digest}
+        if before_publication:
+            before_publication(claim, completion, verified)
+
+        def inspect():
+            response = client.get(f"/v1/attempts/{claim['attempt_id']}", headers=headers)
+            if response.status_code == 200:
+                view = response.json()
+                reconciliations.append({"operation": "complete", "status": view["status"],
+                                        "accepted_result": view["accepted_result"]})
+
+        publication = require(retry_same(lambda: complete_transport(client, headers, claim, completion) if complete_transport else
+            client.post(f"/v1/attempts/{claim['attempt_id']}/complete", headers=headers, json=completion), "complete", inspect), (201, 200))
         accepted = publication["accepted_result"]
         if (accepted["artifact_id"] != verified["id"] or accepted["sha256"] != digest
             or accepted["attempt_id"] != claim["attempt_id"] or accepted["generation"] != claim["generation"]
@@ -160,6 +177,7 @@ def finish(client, headers, claim, maintenance, started, session, complete, chil
     return dict(phase="ACCEPTED" if complete else "VERIFIED_UNACCEPTED", worker_pid=os.getpid(), worker_session_id=session,
         child_pid=child["child_pid"], child_credential_environment_present=child["credential_environment_present"],
         renewals=maintenance.trace, original_lease_expires_at=claim["lease_expires_at"],
+        reconciliations=reconciliations,
         job_id=claim["job_id"], partition_id=claim["partition_id"], attempt_id=claim["attempt_id"],
         generation=claim["generation"], artifact_id=verified["id"], object_version=verified["object_version"],
         sha256=digest, size_bytes=str(len(data)), counters=counters,

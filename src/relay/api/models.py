@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, StrictInt
 
 Hash = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 Counter = Annotated[str, Field(pattern=r"^(0|[1-9][0-9]{0,18})$")]
@@ -108,3 +108,19 @@ class Completion(ContractModel):
     artifact_id: UUID
     artifact_uri: Annotated[str, Field(min_length=1, max_length=2048)]
     sha256: Hash
+
+
+def bounded_detail(value):
+    from relay.control.common import canonical
+    if len(canonical(value)) > 4096:
+        raise ValueError("failure_detail_too_large")
+    return value
+
+
+class Failure(ContractModel):
+    job_id: UUID
+    partition_id: UUID
+    generation: Counter
+    code: Literal["worker_crash", "store_transient", "transport_error", "input_invalid",
+                  "schema_mismatch", "workload_validation", "integer_overflow"]
+    detail: Annotated[dict[str, JsonValue], AfterValidator(bounded_detail)]

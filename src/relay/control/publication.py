@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from relay.db import schema as db
 
 from .common import append_event, db_time, fingerprint, receipt, save_receipt, wire
+from .settlement import finish_job
 
 
 def artifact_uri(artifact):
@@ -159,9 +160,5 @@ def publish_locked(c, worker, attempt_id, model, scope, key, request_hash):
         append_event(c, job, event_type, worker, partition=partition["id"], attempt=attempt_id,
             generation=generation, occurred_at=t, from_state=before, to_state=after, request_id=key,
             details={"artifact_id": str(artifact["id"])} if event_type == "RESULT_ACCEPTED" else {})
-    states = c.execute(sa.select(db.partitions.c.status).where(db.partitions.c.job_id == job["id"])).scalars().all()
-    if all(state == "SUCCEEDED" for state in states):
-        c.execute(db.jobs.update().where(db.jobs.c.id == job["id"]).values(status="SUCCEEDED", finished_at=t))
-        append_event(c, job, "JOB_SUCCEEDED", worker, occurred_at=t, from_state="RUNNING", to_state="SUCCEEDED", request_id=key)
-        job["status"] = "SUCCEEDED"
+    finish_job(c, job, t, worker, request_id=key)
     return 201, {"accepted_result": accepted_response(result, artifact), "replay": False, "job_status": job["status"]}

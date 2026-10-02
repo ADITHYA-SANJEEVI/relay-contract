@@ -1,6 +1,6 @@
 # Relay architecture contract — v1.0
 
-Prepared 2 October 2026 from the two supplied Relay briefs. This checkout contains the architecture contract, accepted [M0 amendments](docs/decisions/2026-10-02-m0-contract-amendments.md), M0 infrastructure gates, M1A persistence, M1B verified artifacts, M1C fenced publication and M2 concurrent ownership, renewal and worker lifecycle. Recovery, reassignment, cancellation and benchmarks remain unimplemented.
+Prepared 2 October 2026 from the two supplied Relay briefs. This checkout contains the architecture contract, accepted [M0 amendments](docs/decisions/2026-10-02-m0-contract-amendments.md), M0 infrastructure gates, M1A persistence, M1B verified artifacts, M1C fenced publication, M2 concurrent ownership/renewal and M3 recovery, bounded retries and generation fencing. Cancellation and benchmarks remain unimplemented.
 
 Start with [docs/SPEC.md](docs/SPEC.md), then follow its reading order. The nine documents include the architecture diagram, technology choices, schema and transactional pseudocode, state machines, failure outcomes, APIs, invariant-driven tests, reproducible fault/benchmark methodology, risk register and sequential milestones.
 
@@ -97,9 +97,9 @@ Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
 .\.venv\Scripts\python.exe scripts/run_worker.py --base-url http://127.0.0.1:8000 --polls 1
 ```
 
-The default worker creates a fresh boot UUID/secret, registers, claims, downloads assigned slices, executes in a separate child, reserves/uploads an output and exits at VERIFIED. A supervisor thread renews independently using monotonic timers, normally every 10 seconds; shorter lease policies advertise one third of their lease duration. Heartbeat telemetry remains separate. The child receives local task files and OS essentials only, without API/session/database/store credentials. The worker never reads `.env`; the launcher strips ambient infrastructure/operator credentials. Its JSON result reports `VERIFIED_UNACCEPTED`, supervisor/child identities, renewal acknowledgements, hash and counters. No work yields `NO_WORK`. Current ownership is inspected before every child starts, including claim receipt replay. Uncertain renewal responses retry the same sequence with a conservative local deadline; no attempt retry or reassignment is implemented.
+The default worker creates a fresh boot UUID/secret, registers, claims, downloads assigned slices, executes in a separate child, reserves/uploads an output and exits at VERIFIED. A supervisor thread renews independently using monotonic timers, normally every 10 seconds; shorter lease policies advertise one third of their lease duration. Heartbeat telemetry remains separate. The child receives local task files and OS essentials only, without API/session/database/store credentials. The worker never reads `.env`; the launcher strips ambient infrastructure/operator credentials. Its JSON result reports `VERIFIED_UNACCEPTED`, supervisor/child identities, renewal acknowledgements, hash and counters. No work yields `NO_WORK`. Current ownership is inspected before every child starts, including claim receipt replay. Uncertain renewal responses retry the same sequence with a conservative local deadline. M3 retries uncertain register/claim/reserve/upload/complete requests up to three sends of the same identity; completion also inspects GET attempt. No replacement identity is created for a lost response. Exhausted uncertainty exits explicitly; recovery and a later fresh worker poll handle attempt reassignment.
 
-Endpoints include live/ready, input reserve/upload/read, job submit/read/partitions/events/results, worker register/claim/heartbeat/drain/stop, attempt read/renew/complete, assigned input-slice read and artifact reserve/upload/read. A VERIFIED artifact alone leaves its attempt ACTIVE and partition/job RUNNING, with `complete=false` and zero accepted results. Fail/cancel/recovery remain absent. Drain denies new claims while allowing existing work; stop requires no ACTIVE attempt, including expired but unsettled attempts. Process exit does not automatically mark STOPPED.
+Endpoints include live/ready, input reserve/upload/read, job submit/read/partitions/events/results, worker register/claim/heartbeat/drain/stop, attempt read/renew/complete/fail, assigned input-slice read and artifact reserve/upload/read. A VERIFIED artifact alone leaves its attempt ACTIVE and partition/job RUNNING, with `complete=false` and zero accepted results. Cancellation remains absent. Drain denies new claims while allowing existing work; stop requires no ACTIVE attempt, including expired but unsettled attempts. Process exit does not automatically mark STOPPED.
 
 For one full M1C execution through acceptance, use:
 
@@ -121,13 +121,40 @@ Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
 .\.venv\Scripts\python.exe -m pytest tests/unit tests/integration -v -s --maxfail=1
 .\.venv\Scripts\python.exe -m pytest tests/publication -v -s --maxfail=1
 .\.venv\Scripts\python.exe -m pytest tests/concurrency -v -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/faults -v -s --maxfail=1
 .\.venv\Scripts\python.exe -m pytest tests/persistence -v -s --maxfail=1
 .\.venv\Scripts\python.exe -m pytest tests/infrastructure tests/storage_contract -v -s --maxfail=1
 ```
 
 Integration tests launch a real API process and credential-restricted independent workers, use disposable UUID-named databases on Compose PostgreSQL, and retain immutable test objects in MinIO. Harness temporary credentials/logs are confined to ignored workspace cache children and removed after their processes exit. The storage observer uses real gateway calls and checks both pool state and PostgreSQL transaction state; it does not mock S3. [M1B_EVIDENCE.md](docs/M1B_EVIDENCE.md) records the previous pass. [M1C_EVIDENCE.md](docs/M1C_EVIDENCE.md) records full three-partition T01, basic T05 completion concurrency, T26 and rejection/replay evidence. Test-only SQL triggers/barriers exist solely in disposable databases; no production fault-control endpoint is installed. The missing-version test deliberately deletes only its own fixture's pinned version using the trusted storage administrator to establish explicit integrity failure.
 
-[M2_EVIDENCE.md](docs/M2_EVIDENCE.md) records claim contention, sequence/deadline tests, session restart, lost response and supervisor/concurrent-process evidence. Test child duration/file barriers and response-discard controls live only under `tests/concurrency`; the production CLI exposes none of them. The hard-deadline test waits through the real 60-second minimum lifetime. No correctness timing is a throughput benchmark, and expired ACTIVE attempts remain unsettled until a later authorized recovery milestone.
+[M2_EVIDENCE.md](docs/M2_EVIDENCE.md) records the accepted previous-pass claim contention, sequence/deadline, session restart and supervisor evidence. Its expired attempts remained unsettled at that milestone. Test controls live under `tests/concurrency` and `tests/faults`; production CLI/API expose no fault-control endpoint. Hard-deadline tests wait through the real 60-second minimum lifetime. Correctness timing is not a throughput benchmark.
+
+## M3 recovery and failure
+
+Run the independent recovery process alongside the API:
+
+```powershell
+Set-Location "C:\Users\adith\OneDrive\Desktop\relay-contract"
+.\.venv\Scripts\python.exe scripts/run_recovery.py --env-file .env
+```
+
+Recovery retains only `POSTGRES_RUNTIME_PASSWORD`, `POSTGRES_PORT` and `POSTGRES_DATABASE` from that file. A separate ignored file containing just those three fields also works. It needs no worker/API/store/admin credential. Default polling is 1 second with 100 unlocked candidates; `--once` performs one batch and exits. Multiple processes can safely run concurrently. Each candidate gets its own job → partition → attempt transaction and a fresh DB-time recheck after locks. An expired current ACTIVE attempt becomes EXPIRED; retry budget schedules READY at `finished_at + min(2^(generation-1),30)` seconds, or FAILED at exhaustion. Only a later eligible committed claim creates the next generation. Failed partitions drain other READY/RUNNING work before the job becomes FAILED.
+
+`POST /v1/attempts/{id}/fail` takes `{job_id,partition_id,generation,code,detail}` under the owner's session credential. M3 accepts retryable `worker_crash`, `store_transient`, `transport_error`; nonretryable `input_invalid`, `schema_mismatch`, `workload_validation`, `integer_overflow`. Unknown codes/fields, a caller retryability flag or invalid detail reject 422. Detail is a JSON object bounded to 4 KiB of canonical UTF-8. An exact failure repeat returns its original disposition even after another generation claims, without rescheduling or another event. Changed terminal failure conflicts. Expired fresh failure leaves expiry settlement to recovery. Worker computation exceptions still exit and recover through expiry unless explicitly reported by the owner.
+
+Run M3 and all earlier gates as separate invocations (API-heavy suites serially on this Windows host):
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/faults -q -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/concurrency -q -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/publication -q -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/unit tests/integration -q -s --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/persistence -q --maxfail=1
+.\.venv\Scripts\python.exe -m pytest tests/infrastructure tests/storage_contract -q --maxfail=1
+```
+
+[M3_EVIDENCE.md](docs/M3_EVIDENCE.md) records real OS crashes, competing recovery loops, retry caps, both race orderings and the exact ordinal-17 generation 1→5 history. Generation 4 produces VERIFIED artifact A and stops renewing before publication; recovery expires it, a distinct generation-5 worker publishes B, and A's repeated original completion is fenced as stale. VERIFIED orphans remain retained and unaccepted, with new attempt/artifact/key identities for later generations. Cancellation, GC, complete outage/restart coverage and benchmark claims remain later work.
 
 ## Pinned candidate build
 

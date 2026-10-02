@@ -415,5 +415,6 @@ def test_auth_unknown_fields_and_unimplemented_endpoints(api):
     assert api.client.post(f"/v1/attempts/{uuid4()}/complete").status_code == 401
     # M2 adds renewal; retain auth denial and the remaining forbidden endpoints.
     assert api.client.post(f"/v1/attempts/{uuid4()}/renew").status_code == 401
-    assert api.client.post(f"/v1/attempts/{uuid4()}/fail").status_code == 404
+    # M3 adds server-classified failure; unauthenticated calls remain denied.
+    assert api.client.post(f"/v1/attempts/{uuid4()}/fail").status_code == 401
     assert api.client.post(f"/v1/jobs/{uuid4()}/cancel").status_code == 404
