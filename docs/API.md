@@ -66,6 +66,18 @@ Failure response records job/partition/attempt IDs, decimal generation, attempt_
 
 ## Observability
 
+### Implemented R1 read-only operator contract
+
+The additive `/v1/operator` GET routes, typed schemas, pagination, snapshot clocks,
+accepted authority, worker observations, on-demand verification, errors and exact
+BV01-BV12 decisions are authoritative in [OPERATOR_API.md](OPERATOR_API.md).
+They reuse the existing local operator bearer token; no browser auth adapter is
+implemented. Passive metadata reads perform no object-store verification. The
+original consumer result/content routes retain their behavior. R1 readiness
+expects migration `0003_operator_indexes` (four additive query indexes only).
+Planned metrics/cancellation text elsewhere in this contract does not imply
+those routes are implemented by R1.
+
 Post-acceptance integrity failures on exact pinned-version reads are explicit errors with structured logs and appropriate metrics. Accepted metadata is unchanged; another object is never substituted and a terminal partition is not automatically recomputed. Durable, deduplicated, queryable integrity-incident persistence and a query API for it are deferred beyond V1.
 
 `GET /health/live` reports process liveliness; `GET /health/ready` checks DB connection, migration version and store capability readiness. Liveness does not depend on stores. `GET /metrics` uses low-cardinality labels: status, operation, workload version and rejection reason; never job/partition IDs as metric labels.

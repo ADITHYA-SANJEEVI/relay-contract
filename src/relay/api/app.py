@@ -25,6 +25,8 @@ from relay.control.leases import heartbeat, lifecycle, renew
 from relay.control.settlement import fail
 from relay.db import schema as db
 from relay.db.connection import database_url, make_engine
+from relay.operator.routes import router as operator_router
+from relay.operator.service import OperatorReads, SCHEMA_REVISION
 
 from .models import ArtifactReservation, Claim, Completion, Failure, Heartbeat, InputReservation, Registration, Renewal, Submission
 
@@ -49,6 +51,8 @@ def create_app(settings):
         request.state.request_id = str(uuid4())
         response = await call_next(request)
         response.headers["X-Request-Id"] = request.state.request_id
+        if request.url.path.startswith("/v1/operator/"):
+            response.headers["Cache-Control"] = "private, no-store"
         logger.info(json.dumps({"component": "api", "operation": request.method,
                     "request_id": request.state.request_id, "status": response.status_code}))
         return response
@@ -62,7 +66,8 @@ def create_app(settings):
         logger.info(json.dumps({"component": "control", "operation": request.url.path.rsplit("/", 1)[-1],
             "outcome": "rejected", "error_code": error.code, "request_id": request.state.request_id}))
         return error_response(request, error.code, error.status,
-                              "unknown" if error.status == 503 else "rejected")
+                              "not_committed" if error.status == 503 and request.url.path.startswith("/v1/operator/")
+                              else "unknown" if error.status == 503 else "rejected")
 
     @app.exception_handler(RequestValidationError)
     async def invalid_path(request, error):
@@ -70,6 +75,8 @@ def create_app(settings):
 
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request, error):
+        if request.url.path.startswith("/v1/operator/"):
+            return error_response(request, "database_unavailable", 503, "not_committed")
         # A disconnect at COMMIT can have unknown outcome. Never infer rollback.
         state = getattr(getattr(error, "orig", None), "sqlstate", None)
         known_abort = isinstance(error, DBAPIError) and not error.connection_invalidated and state in (
@@ -128,12 +135,12 @@ def create_app(settings):
     def ready():
         try:
             with engine.connect() as c:
-                if c.scalar(sa.text("SELECT version_num FROM relay_schema_version")) != "0002_readiness":
+                if c.scalar(sa.text("SELECT version_num FROM relay_schema_version")) != SCHEMA_REVISION:
                     raise Rejection("schema_not_ready", 503)
             gateway.ready()
         except Rejection: raise
         except Exception: raise Rejection("dependencies_not_ready", 503)
-        return {"ready": True, "migration_revision": "0002_readiness"}
+        return {"ready": True, "migration_revision": SCHEMA_REVISION}
 
     @app.post("/v1/inputs")
     async def reserve_input(request: Request):
@@ -372,6 +379,7 @@ def create_app(settings):
         if attempt["worker_session_id"] != session: raise Rejection("wrong_owner", 403)
         return await upload_body(request, identity, False)
 
+    app.include_router(operator_router(OperatorReads(engine, gateway), operator))
     return app
 
 

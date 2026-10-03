@@ -58,6 +58,8 @@ jobs = sa.Table("jobs", metadata,
 )
 sa.Index("ix_jobs_active_fair", jobs.c.fair_ticket, jobs.c.created_at, jobs.c.id,
          postgresql_where=jobs.c.status.in_(["QUEUED", "RUNNING"]))
+sa.Index("ix_jobs_operator_created", jobs.c.created_at, jobs.c.id)
+sa.Index("ix_jobs_operator_status_created", jobs.c.status, jobs.c.created_at, jobs.c.id)
 
 input_artifacts = sa.Table("input_artifacts", metadata,
     uid("id", primary_key=True), sa.Column("import_key", sa.Text, nullable=False, unique=True),
@@ -145,6 +147,7 @@ attempts = sa.Table("attempts", metadata,
 sa.Index("uq_attempts_active_partition", attempts.c.partition_id, unique=True, postgresql_where=attempts.c.status == "ACTIVE")
 sa.Index("uq_attempts_active_worker", attempts.c.worker_session_id, unique=True, postgresql_where=attempts.c.status == "ACTIVE")
 sa.Index("ix_attempts_expiry", attempts.c.lease_expires_at, attempts.c.partition_id, postgresql_where=attempts.c.status == "ACTIVE")
+sa.Index("ix_attempts_operator_worker", attempts.c.worker_session_id, attempts.c.id)
 
 artifacts = sa.Table("artifacts", metadata,
     uid("id", primary_key=True), uid("attempt_id"), uid("partition_id"), sa.Column("generation", sa.BigInteger, nullable=False),
@@ -187,6 +190,7 @@ events = sa.Table("events", metadata,
     check("attempt_id IS NULL OR (partition_id IS NOT NULL AND attempt_partition_id = partition_id)", "attempt_partition"),
 )
 sa.Index("ix_events_cursor", events.c.job_id, events.c.partition_id, events.c.seq)
+sa.Index("ix_events_operator_attempt", events.c.job_id, events.c.attempt_id, events.c.seq)
 
 worker_events = sa.Table("worker_events", metadata,
     uid("session_id", primary_key=True, references="workers.session_id"), sa.Column("seq", sa.BigInteger, primary_key=True),
