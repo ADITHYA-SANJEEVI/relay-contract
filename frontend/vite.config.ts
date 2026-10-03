@@ -4,6 +4,7 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/board/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -11,8 +12,18 @@ export default defineConfig({
     },
   },
   server: {
+    host: '127.0.0.1',
     port: 3000,
+    strictPort: true,
     proxy: {
+      '/board-connect': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: false,
+      },
+      '/board-api': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: false,
+      },
       '/v1': {
         target: 'http://localhost:8000',
         changeOrigin: true,

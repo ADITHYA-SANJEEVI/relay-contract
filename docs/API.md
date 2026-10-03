@@ -71,8 +71,10 @@ Failure response records job/partition/attempt IDs, decimal generation, attempt_
 The additive `/v1/operator` GET routes, typed schemas, pagination, snapshot clocks,
 accepted authority, worker observations, on-demand verification, errors and exact
 BV01-BV12 decisions are authoritative in [OPERATOR_API.md](OPERATOR_API.md).
-They reuse the existing local operator bearer token; no browser auth adapter is
-implemented. Passive metadata reads perform no object-store verification. The
+They reuse the existing local operator bearer token. The separate localhost
+[BV10 browser seam](BROWSER_LIVE_SEAM.md) adapts same-origin HttpOnly read sessions
+to this unchanged bearer boundary; direct backend routes remain bearer-only.
+Passive metadata reads perform no object-store verification. The
 original consumer result/content routes retain their behavior. R1 readiness
 expects migration `0003_operator_indexes` (four additive query indexes only).
 Planned metrics/cancellation text elsewhere in this contract does not imply

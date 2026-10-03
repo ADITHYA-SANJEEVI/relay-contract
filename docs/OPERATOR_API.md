@@ -8,9 +8,12 @@ partition. These routes do not change the M1-M3 transition protocol.
 ## Common request and observation rules
 
 All routes below are **GET** and require the existing local operator bearer token.
-Worker session credentials cannot authorize them. There is no new browser cookie,
-pairing, viewer role, production authentication or CORS adapter. Preserve the
-localhost/trusted-installation boundary in [API.md](API.md). Responses include
+Worker session credentials cannot authorize them. The direct backend has no cookie
+or pairing auth. R1.5's separate [local browser BFF](BROWSER_LIVE_SEAM.md) adapts
+an HttpOnly read session to these same bearer reads. Only authenticated BFF
+capability discovery overlays BV10 as AVAILABLE; direct discovery stays DEFERRED.
+There is no viewer hierarchy, production authentication or privileged CORS.
+Preserve the localhost/trusted-installation boundary in [API.md](API.md). Responses include
 `Cache-Control: private, no-store` and the existing `X-Request-Id` header. Unknown
 query fields reject 422. UUID parameters require exact UUIDs.
 
@@ -264,6 +267,10 @@ or a currently reachable live cluster. Use existing health endpoints for those
 separate observations. Dependency failure yields 503; it is not interpreted as
 NOT_IMPLEMENTED. UNAVAILABLE is a supported capability-state vocabulary reserved
 for a known unavailable implementation; R1 does not fabricate such a state.
+
+The table describes direct backend discovery. R1.5's running authenticated BFF
+overlays only BV10_BROWSER_AUTH as AVAILABLE with its local session routes;
+backend discovery retains DEFERRED. See [BROWSER_LIVE_SEAM.md](BROWSER_LIVE_SEAM.md).
 
 | Product gap | R1 classification | Discovery state / decision |
 |---|---|---|
