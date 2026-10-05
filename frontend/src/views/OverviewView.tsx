@@ -39,8 +39,8 @@ export const OverviewView: React.FC = () => {
         </p>
       </div>
 
-      {/* Open Job by ID Card */}
-      <div className="p-5 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)]">
+      {/* Open Job by ID Panel */}
+      <div className="py-5 border-y border-[var(--color-border-subtle)]">
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
           Open Job Investigation
         </h2>
@@ -101,9 +101,9 @@ export const OverviewView: React.FC = () => {
       </div>
 
       {/* Needs Attention / Active Work Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Active Attention Items */}
-        <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)]">
+        <div className="pt-2">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle size={15} className="text-[var(--color-attention)]" aria-hidden="true" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-primary)]">
@@ -111,8 +111,8 @@ export const OverviewView: React.FC = () => {
             </h3>
           </div>
 
-          <div className="space-y-2 text-xs">
-            <div className="p-2.5 rounded bg-[rgba(240,198,116,0.08)] border border-[rgba(240,198,116,0.2)] flex items-start justify-between">
+          <div className="space-y-2 text-xs border-l-2 border-l-[var(--color-border-subtle)] pl-3">
+            <div className="p-2.5 bg-[rgba(240,198,116,0.05)] border-l-2 border-[rgba(240,198,116,0.5)] flex items-start justify-between">
               <div>
                 <div className="font-semibold text-[var(--color-attention)]">
                   Partition 1: Deadline Passed
@@ -130,7 +130,7 @@ export const OverviewView: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-2.5 rounded bg-[rgba(255,146,155,0.08)] border border-[rgba(255,146,155,0.2)] flex items-start justify-between">
+            <div className="p-2.5 bg-[rgba(255,146,155,0.05)] border-l-2 border-[rgba(255,146,155,0.5)] flex items-start justify-between">
               <div>
                 <div className="font-semibold text-[var(--color-failure)]">
                   Partition 3: Terminal Failure
@@ -151,7 +151,7 @@ export const OverviewView: React.FC = () => {
         </div>
 
         {/* Global Cluster Capability Note */}
-        <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)]">
+        <div className="pt-2">
           <div className="flex items-center gap-2 mb-3">
             <Layers size={15} className="text-[var(--color-execution)]" aria-hidden="true" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-primary)]">

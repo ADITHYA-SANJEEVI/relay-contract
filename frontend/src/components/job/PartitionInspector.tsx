@@ -47,7 +47,7 @@ export const PartitionInspector: React.FC<PartitionInspectorProps> = ({
 
   return (
     <div 
-      className="flex flex-col h-full bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-lg overflow-hidden"
+      className="flex flex-col h-full bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] overflow-hidden"
       role="region"
       aria-label={`Partition ${partition.ordinal} Inspector`}
     >

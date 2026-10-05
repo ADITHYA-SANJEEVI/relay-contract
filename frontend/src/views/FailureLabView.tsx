@@ -29,7 +29,7 @@ export const FailureLabView: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-5">
       {/* Header */}
-      <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] space-y-3">
+      <div className="py-4 border-b border-[var(--color-border-subtle)] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <FlaskConical size={18} className="text-[var(--color-execution)]" aria-hidden="true" />
@@ -78,8 +78,8 @@ export const FailureLabView: React.FC = () => {
       </div>
 
       {/* Expected vs Observed Verdict */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)]">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-2 border-b border-[var(--color-border-subtle)]">
+        <div className="pr-4 border-r border-[var(--color-border-subtle)]">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
             Expected Protocol Invariant
           </h2>
@@ -88,7 +88,7 @@ export const FailureLabView: React.FC = () => {
           </p>
         </div>
 
-        <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] authority-rail-accepted">
+        <div className="pl-4 authority-rail-accepted">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-accepted)] mb-2">
             Observed Authoritative Verdict
           </h2>
@@ -99,8 +99,8 @@ export const FailureLabView: React.FC = () => {
       </div>
 
       {/* Action and Durable Event Ledger */}
-      <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] space-y-3">
-        <div className="flex items-center justify-between">
+      <div className="py-2 space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-[var(--color-border-subtle)]">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
             Correlated Action and Event Ledger
           </h2>
@@ -109,7 +109,7 @@ export const FailureLabView: React.FC = () => {
           </span>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1">
           {scenario.steps.map((st) => {
             const isSelected = selectedStep === st.step;
             return (
@@ -125,10 +125,10 @@ export const FailureLabView: React.FC = () => {
                 tabIndex={0}
                 role="button"
                 aria-pressed={isSelected}
-                className={`p-3 rounded-lg border text-xs font-mono transition-colors cursor-pointer flex flex-wrap items-center justify-between gap-3 ${
+                className={`p-3 border-b text-xs font-mono transition-colors cursor-pointer flex flex-wrap items-center justify-between gap-3 ${
                   isSelected 
-                    ? 'bg-[var(--color-surface-2)] border-[var(--color-execution)]' 
-                    : 'bg-[var(--color-surface-1)] border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-hover)]'
+                    ? 'bg-[var(--color-surface-2)] border-l-2 border-l-[var(--color-execution)] border-b-[var(--color-border-subtle)]' 
+                    : 'bg-[var(--color-canvas)] border-l-2 border-l-transparent border-b-[var(--color-border-subtle)] hover:bg-[var(--color-surface-1)]'
                 }`}
               >
                 <div className="flex items-center gap-3">

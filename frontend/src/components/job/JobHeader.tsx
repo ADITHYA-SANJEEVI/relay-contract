@@ -22,7 +22,7 @@ export const JobHeader: React.FC<JobHeaderProps> = ({ job, onRefresh, isRefreshi
   }
 
   return (
-    <div className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-lg p-4 md:p-5">
+    <div className="pb-4">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Identity & Status */}
         <div className="space-y-1.5">

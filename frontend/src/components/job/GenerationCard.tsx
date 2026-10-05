@@ -34,9 +34,9 @@ export const GenerationCard: React.FC<GenerationCardProps> = ({
       role={onSelect ? 'button' : 'region'}
       aria-label={`Generation ${generation.generation}`}
       className={`
-        p-3.5 rounded-lg border transition-all
+        p-3.5 rounded-sm border transition-all
         ${isSelected 
-          ? 'bg-[var(--color-surface-2)] border-[var(--color-execution)] shadow-sm' 
+          ? 'bg-[var(--color-surface-2)] border-[var(--color-execution)]' 
           : 'bg-[var(--color-surface-1)] border-[var(--color-border-subtle)] hover:border-[var(--color-border-control)]'
         }
         ${isAccepted ? 'authority-rail-accepted' : ''}

@@ -26,7 +26,7 @@ export const PartitionTable: React.FC<PartitionTableProps> = ({
   const filterOptions = ['ALL', 'READY', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED'];
 
   return (
-    <div className="flex flex-col h-full bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full border-y xl:border border-[var(--color-border-subtle)] overflow-hidden">
       {/* Table Toolbar */}
       <div className="p-3 border-b border-[var(--color-border-subtle)] flex flex-wrap items-center justify-between gap-3 bg-[var(--color-surface-1)]">
         <div className="flex items-center gap-2">

@@ -31,7 +31,7 @@ export const WorkersView: React.FC = () => {
         </p>
       </div>
 
-      <div className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-lg overflow-hidden">
+      <div className="border-y border-[var(--color-border-subtle)] overflow-hidden">
         <table className="relay-table">
           <thead>
             <tr>

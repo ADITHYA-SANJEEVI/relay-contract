@@ -27,7 +27,7 @@ export const DefinitionTab: React.FC<DefinitionTabProps> = ({ job }) => {
       </div>
 
       {/* Structured Fields Actually Exposed by Baseline Job Read */}
-      <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)]">
+      <div className="py-4 border-b border-[var(--color-border-subtle)]">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
             {isSyntheticFixtureWithWorkload ? 'Core Workload & Policy Parameters' : 'Baseline Job Identity & Lifecycle Parameters'}
@@ -127,7 +127,7 @@ export const DefinitionTab: React.FC<DefinitionTabProps> = ({ job }) => {
         />
       ) : (
         /* Synthetic Mode: Structured JSON clearly labeled as fixture */
-        <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)]">
+        <div className="py-4 border-b border-[var(--color-border-subtle)]">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
               Synthetic Fixture Submission Descriptor
@@ -136,7 +136,7 @@ export const DefinitionTab: React.FC<DefinitionTabProps> = ({ job }) => {
               Fixture Data
             </span>
           </div>
-          <pre className="p-3 rounded bg-[var(--color-canvas)] text-xs font-mono text-[var(--color-text-secondary)] overflow-x-auto border border-[var(--color-border-subtle)]">
+          <pre className="p-3 rounded bg-[var(--color-surface-1)] text-xs font-mono text-[var(--color-text-secondary)] overflow-x-auto border-l-2 border-l-[var(--color-execution)]">
             {JSON.stringify({
               id: job.id,
               definition_hash: job.definition_hash,

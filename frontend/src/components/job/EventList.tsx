@@ -124,10 +124,10 @@ export const EventList: React.FC<EventListProps> = ({
     return (
       <div 
         key={ev.seq} 
-        className={`p-3 rounded border transition-colors ${
+        className={`p-3 border-b transition-colors ${
           isPartitionMatched 
-            ? 'bg-[var(--color-surface-2)] border-[var(--color-execution)]' 
-            : 'bg-[var(--color-surface-1)] border-[var(--color-border-subtle)]'
+            ? 'bg-[var(--color-surface-2)] border-l-2 border-l-[var(--color-execution)] border-b-[var(--color-border-subtle)]' 
+            : 'bg-[var(--color-canvas)] border-l-2 border-l-transparent border-b-[var(--color-border-subtle)] hover:bg-[var(--color-surface-1)]'
         }`}
       >
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -241,7 +241,7 @@ export const EventList: React.FC<EventListProps> = ({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="border-t border-[var(--color-border-subtle)] flex flex-col">
         {groupedItems.map((item) => {
           if (!item.isGroup) {
             return renderSingleEvent(item.events[0]);
@@ -254,7 +254,7 @@ export const EventList: React.FC<EventListProps> = ({
           return (
             <div 
               key={item.key} 
-              className="border border-[var(--color-border-subtle)] rounded overflow-hidden"
+              className="border-b border-[var(--color-border-subtle)] overflow-hidden"
             >
               <button
                 type="button"

@@ -90,8 +90,8 @@ export const ResultsTab: React.FC<ResultsTabProps> = ({ job }) => {
           </button>
         </div>
       ) : (
-        <div className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-lg overflow-hidden">
-          <div className="p-3 border-b border-[var(--color-border-subtle)] flex items-center justify-between text-xs">
+        <div className="border-y border-[var(--color-border-subtle)] overflow-hidden">
+          <div className="p-3 border-b border-[var(--color-border-subtle)] flex items-center justify-between text-xs bg-[var(--color-canvas)]">
             <span className="font-semibold text-[var(--color-text-primary)]">
               Accepted Result Manifests ({results.length})
             </span>

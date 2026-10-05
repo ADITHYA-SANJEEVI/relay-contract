@@ -21,7 +21,7 @@ export const JobSummaryStrip: React.FC<JobSummaryStripProps> = ({ job, observedA
 
   return (
     <div 
-      className="bg-[var(--color-surface-1)] border border-[var(--color-border-subtle)] rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-y-3 gap-x-6 min-h-[72px]"
+      className="pb-2 flex flex-wrap items-center justify-between gap-y-3 gap-x-6 min-h-[52px]"
       role="region"
       aria-label="Job execution summary"
     >
