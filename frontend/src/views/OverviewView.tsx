@@ -189,7 +189,7 @@ export const OverviewView: React.FC = () => {
             <div className="flex items-center justify-between">
               <dt className="text-[var(--color-text-muted)]">Catalogue Route:</dt>
               <dd className="text-[var(--color-attention)]">
-                BV01 Gap (Planned)
+                Available (Pending BV10 Auth)
               </dd>
             </div>
           </dl>

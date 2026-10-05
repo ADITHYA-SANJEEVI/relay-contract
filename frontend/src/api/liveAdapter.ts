@@ -134,9 +134,9 @@ export class LiveDataAdapter {
   getPartitionHistoryGap(): CapabilityState {
     return {
       code: 'BV03_PARTITION_HISTORY',
-      title: 'Complete Partition Attempt History',
-      description: 'Historical attempts, worker session bindings, and non-authoritative artifacts for this partition are not exposed by the current baseline read contract.',
-      requiredReadContract: 'GET /v1/operator/partitions/{id}',
+      title: 'BACKEND READ AVAILABLE (BV03) — BROWSER LIVE SESSION INTEGRATION PENDING',
+      description: 'The R1 backend implements full historical attempt reads (BV03). However, consuming them in the browser requires the pending BV10 authentication adapter.',
+      requiredReadContract: 'GET /v1/operator/partitions/{id}/history',
       isGap: true,
     };
   }
@@ -144,8 +144,8 @@ export class LiveDataAdapter {
   getJobsCatalogueGap(): CapabilityState {
     return {
       code: 'BV01_JOBS_CATALOGUE',
-      title: 'Global Jobs Catalogue',
-      description: 'A global listing of jobs across the installation is not exposed by the current baseline backend. Jobs can be inspected by explicit Job ID.',
+      title: 'BACKEND READ AVAILABLE (BV01) — BROWSER LIVE SESSION INTEGRATION PENDING',
+      description: 'The R1 backend implements a global jobs catalogue (BV01). However, consuming it in the browser requires the pending BV10 authentication adapter.',
       requiredReadContract: 'GET /v1/operator/jobs',
       isGap: true,
     };
@@ -154,8 +154,8 @@ export class LiveDataAdapter {
   getFleetGap(): CapabilityState {
     return {
       code: 'BV07_FLEET_HISTORY',
-      title: 'Worker Fleet and Session History',
-      description: 'Worker fleet listing, registration sessions, and heartbeat observations are not exposed via an operator read route. Worker-self endpoints require worker secrets and cannot be called from the browser.',
+      title: 'BACKEND READ AVAILABLE (BV07) — BROWSER LIVE SESSION INTEGRATION PENDING',
+      description: 'The R1 backend implements worker fleet listing and session history (BV07). However, consuming them in the browser requires the pending BV10 authentication adapter.',
       requiredReadContract: 'GET /v1/operator/workers',
       isGap: true,
     };

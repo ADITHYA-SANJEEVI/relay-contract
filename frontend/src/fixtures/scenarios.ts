@@ -267,8 +267,8 @@ export const SCENARIO_G_CONNECTION = {
  */
 export const SCENARIO_H_CAPABILITY: CapabilityState = {
   code: 'BV03_PARTITION_HISTORY',
-  title: 'Complete Partition Attempt History (BV03)',
-  description: 'Full historical attempts, owning sessions, and unaccepted artifact metadata for this partition are not exposed by the current backend read contract.',
+  title: 'BACKEND READ AVAILABLE (BV03) — BROWSER LIVE SESSION INTEGRATION PENDING',
+  description: 'The R1 backend implements full historical attempt reads (BV03). However, consuming them in the browser requires the pending BV10 authentication adapter.',
   requiredReadContract: 'GET /v1/operator/partitions/{id}/history',
   isGap: true
 };

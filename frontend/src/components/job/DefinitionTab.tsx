@@ -121,8 +121,8 @@ export const DefinitionTab: React.FC<DefinitionTabProps> = ({ job }) => {
       {/* In live mode: render BV09 capability gap for unexposed definition details. Do not fabricate raw submission descriptor! */}
       {!isSyntheticFixtureWithWorkload ? (
         <CapabilityUnavailable
-          title="Immutable Workload & Policy Parameters Not Exposed (BV09)"
-          description="The baseline GET /v1/jobs/{id} read route returns the immutable definition_hash, partition count, and lifecycle timestamps. Detailed submission descriptors (workload name/digest, policy lease/attempt bounds, and input slices) require the planned definition read endpoint (BV09). They are not fabricated from client-side defaults."
+          title="BACKEND READ AVAILABLE (BV09) — BROWSER LIVE SESSION INTEGRATION PENDING"
+          description="The R1 backend implements detailed submission descriptor reads (BV09). However, consuming them in the browser requires the pending BV10 authentication adapter."
           requiredReadContract="GET /v1/jobs/{id}/definition"
         />
       ) : (
