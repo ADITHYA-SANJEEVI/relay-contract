@@ -64,14 +64,17 @@ export const PartitionTable: React.FC<PartitionTableProps> = ({
         <table className="relay-table">
           <thead>
             <tr>
-              <th scope="col" className="w-24">Ordinal</th>
-              <th scope="col" className="w-28">Status</th>
-              <th scope="col" className="w-20">Gen</th>
-              <th scope="col">Accepted Result</th>
-              <th scope="col">Latest Attempt</th>
-              <th scope="col">Lease / Deadline Observation</th>
-              <th scope="col">Last Error</th>
-              <th scope="col" className="w-16 text-right">Inspect</th>
+              <th scope="col" className="w-20 sm:w-24">Ordinal</th>
+              <th scope="col" className="w-24 sm:w-28">Status</th>
+              <th scope="col" className="w-14 sm:w-20">Gen</th>
+              <th scope="col">
+                <span className="hidden sm:inline">Accepted Result</span>
+                <span className="sm:hidden">Result</span>
+              </th>
+              <th scope="col" className="hidden lg:table-cell">Latest Attempt</th>
+              <th scope="col" className="hidden lg:table-cell">Lease / Deadline Observation</th>
+              <th scope="col" className="hidden md:table-cell">Last Error</th>
+              <th scope="col" className="w-12 sm:w-16 text-right">Inspect</th>
             </tr>
           </thead>
           <tbody>
@@ -152,7 +155,7 @@ export const PartitionTable: React.FC<PartitionTableProps> = ({
                     </td>
 
                     {/* Latest Attempt */}
-                    <td className="font-mono text-xs">
+                    <td className="font-mono text-xs hidden lg:table-cell">
                       {partition.attempt_id ? (
                         <CopyField value={partition.attempt_id} label="Attempt ID" shorten truncateLength={6} />
                       ) : (
@@ -161,7 +164,7 @@ export const PartitionTable: React.FC<PartitionTableProps> = ({
                     </td>
 
                     {/* Lease Observation */}
-                    <td>
+                    <td className="hidden lg:table-cell">
                       {isDeadlinePassed ? (
                         <ObservationBadge isDeadlinePassed={true} attemptStatus="ACTIVE" />
                       ) : partition.lease_expires_at ? (
@@ -174,7 +177,7 @@ export const PartitionTable: React.FC<PartitionTableProps> = ({
                     </td>
 
                     {/* Last Error */}
-                    <td>
+                    <td className="hidden md:table-cell">
                       {partition.last_error_code ? (
                         <span className="inline-flex items-center gap-1 font-mono text-xs text-[var(--color-failure)]">
                           <AlertTriangle size={12} aria-hidden="true" />

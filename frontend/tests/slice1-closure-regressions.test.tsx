@@ -396,4 +396,51 @@ describe('Relay Frontend Slice 1 Closure Pass Regressions', () => {
     // Must NOT say "0 recorded" or generic empty state
     expect(screen.queryByText('(0 recorded)')).not.toBeInTheDocument();
   });
+
+  // Requirement 9: Responsive Table Closure
+  it('9. Fix 3: Partition table gracefully hides secondary columns for narrow viewports', () => {
+    const normalPartitions = [
+      {
+        id: 'part-responsive',
+        ordinal: 0,
+        status: 'SUCCEEDED' as const,
+        generation: '1',
+        attempt_id: 'att-res-1',
+        lease_expires_at: null,
+        hard_deadline_at: null,
+        accepted_artifact_id: 'art-res',
+        latest_attempt_status: 'SUCCEEDED' as const,
+        eligible_at: null,
+        last_error_code: null
+      }
+    ];
+
+    render(
+      <PartitionTable
+        partitions={normalPartitions}
+        selectedPartitionId={null}
+        onSelectPartition={() => {}}
+        statusFilter="ALL"
+        onChangeStatusFilter={() => {}}
+        observedAt="2026-10-03T02:00:00Z"
+      />
+    );
+
+    // Verify desktop columns are present but have the right hidden classes
+    const latestAttemptHeader = screen.getByRole('columnheader', { name: /Latest Attempt/i });
+    expect(latestAttemptHeader).toHaveClass('hidden lg:table-cell');
+
+    const leaseHeader = screen.getByRole('columnheader', { name: /Lease \/ Deadline/i });
+    expect(leaseHeader).toHaveClass('hidden lg:table-cell');
+
+    const lastErrorHeader = screen.getByRole('columnheader', { name: /Last Error/i });
+    expect(lastErrorHeader).toHaveClass('hidden md:table-cell');
+
+    // The core info must remain visible without hidden classes
+    const statusHeader = screen.getByRole('columnheader', { name: /Status/i });
+    expect(statusHeader).not.toHaveClass('hidden lg:table-cell');
+    
+    const acceptedHeader = screen.getByRole('columnheader', { name: /Accepted Result/i });
+    expect(acceptedHeader).not.toHaveClass('hidden lg:table-cell');
+  });
 });
