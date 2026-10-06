@@ -96,7 +96,7 @@ async function run() {
       },
       {
         name: '10_overview_open_job.png',
-        url: 'http://localhost:4173/board',
+        url: 'http://localhost:4173/board/',
         width: 1440,
         height: 900,
       },
@@ -127,6 +127,12 @@ async function run() {
         width: 1440,
         height: 900,
         scenario: 'SCENARIO_H_CAPABILITY_GAP',
+      },
+      {
+        name: '15_job_detail_390x844_mobile.png',
+        url: 'http://localhost:4173/board/jobs/11111111-1111-4111-8111-111111111111?partition=0',
+        width: 390,
+        height: 844,
       }
     ];
 
@@ -135,6 +141,11 @@ async function run() {
       await page.setViewport({ width: cap.width, height: cap.height });
       await page.goto(cap.url, { waitUntil: 'networkidle0' });
       await new Promise((res) => setTimeout(res, 500));
+
+      const pageText = await page.content();
+      if (pageText.includes('did you mean to visit /board/')) {
+        throw new Error(`Capture failed for ${cap.name}: Server base-path error page detected.`);
+      }
 
       if (cap.scenario) {
         const select = await page.$('#scenario-select');

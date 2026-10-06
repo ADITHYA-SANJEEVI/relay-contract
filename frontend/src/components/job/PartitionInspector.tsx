@@ -119,7 +119,7 @@ export const PartitionInspector: React.FC<PartitionInspectorProps> = ({
           <div className="flex items-center justify-between mb-2">
             <span className="text-label">Generation History</span>
             <span className="text-xs text-[var(--color-text-muted)] font-mono">
-              {historyGap ? '(Gap BV03)' : `(${generations.length} recorded)`}
+              {historyGap ? '(Pending BV10)' : `(${generations.length} recorded)`}
             </span>
           </div>
           <GenerationStack

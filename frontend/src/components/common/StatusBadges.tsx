@@ -112,7 +112,8 @@ export const ObservationBadge: React.FC<{
       <span className="badge badge-attention" title="Observation: Lease/deadline elapsed in browser clock; awaiting durable backend settlement">
         <AlertTriangle size={12} aria-hidden="true" />
         <span className="sr-only">Observation:</span>
-        <span>Deadline passed · awaiting settlement</span>
+        <span className="hidden lg:inline">Deadline passed · awaiting settlement</span>
+        <span className="lg:hidden">Deadline passed</span>
       </span>
     );
   }

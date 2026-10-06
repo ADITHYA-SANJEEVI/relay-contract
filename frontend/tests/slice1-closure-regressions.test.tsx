@@ -392,7 +392,7 @@ describe('Relay Frontend Slice 1 Closure Pass Regressions', () => {
     expect(screen.getByText('BACKEND READ AVAILABLE (BV03) — BROWSER LIVE SESSION INTEGRATION PENDING')).toBeInTheDocument();
     expect(screen.getByText(/The R1 backend implements full historical attempt reads \(BV03\)/)).toBeInTheDocument();
     expect(screen.getByText('GET /v1/operator/partitions/{id}/history')).toBeInTheDocument();
-    expect(screen.getByText('(Gap BV03)')).toBeInTheDocument();
+    expect(screen.getByText('(Pending BV10)')).toBeInTheDocument();
     // Must NOT say "0 recorded" or generic empty state
     expect(screen.queryByText('(0 recorded)')).not.toBeInTheDocument();
   });
