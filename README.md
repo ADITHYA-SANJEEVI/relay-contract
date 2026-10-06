@@ -180,41 +180,67 @@ This is why the Control Board renders accepted authority separately from attempt
 
 # System architecture
 
+Relay separates **execution authority** from **artifact storage**.
+
+PostgreSQL decides which attempt currently owns a partition and which result is authoritative. Object storage preserves immutable attempt outputs, but the existence of an object never makes it authoritative.
+
+## Authority plane
+
 ```mermaid
-flowchart TD
+flowchart LR
     C["Client / Operator"] --> API["FastAPI control plane"]
 
-    W1["Worker process A"] --> API
-    W2["Worker process B"] --> API
+    WA["Worker A"] --> API
+    WB["Worker B"] --> API
 
-    REC["Recovery process"] --> DB["PostgreSQL authority"]
-    API --> DB
-
-    W1 --> GW["Artifact gateway"]
-    W2 --> GW
-    API --> GW
-
-    GW --> OBJ["Versioned object storage"]
+    API --> DB[("PostgreSQL authority")]
+    REC["Recovery process"] --> DB
 
     DB --> OP["Operator read surface"]
     OP --> UI["Relay Control Board"]
-
-    API --> OBS["Logs / operational observations"]
-    REC --> OBS
 ```
 
-The important boundary is:
+The authority plane answers:
 
 ```text
-PostgreSQL = execution and result authority
-
-Object storage = immutable/versioned artifact bytes
+Who owns this partition?
+Which generation is current?
+Has the lease expired?
+May this attempt publish?
+Which result was accepted?
 ```
 
-An artifact existing in object storage does not mean that artifact is the accepted result.
+## Artifact plane
 
-The authoritative relation lives in PostgreSQL.
+```mermaid
+flowchart LR
+    WA["Worker A"] --> GW["Artifact gateway"]
+    WB["Worker B"] --> GW
 
+    API["FastAPI control plane"] --> GW
+
+    GW --> OBJ[("Versioned object storage")]
+```
+
+The artifact plane answers:
+
+```text
+Which exact bytes did this attempt produce?
+Which immutable object version contains them?
+Does the stored content still match its recorded digest?
+```
+
+The two planes deliberately do not collapse into each other:
+
+```text
+artifact exists
+≠
+artifact verified
+≠
+result accepted
+```
+
+That separation is what allows Relay to retain a valid stale artifact while rejecting it as authoritative computation.
 ---
 
 # Core correctness model
